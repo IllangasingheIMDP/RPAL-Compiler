@@ -1,0 +1,1 @@
+let Name = 'Hello' in Print(Name eq 'Hell' & true or false)
