@@ -45,8 +45,3 @@ if __name__ == '__main__':
     print("🔍 Tokens:")
     for token in token_list:
         print(token)
-
-    # Step 2: Parsing
-    print("\n🚀 Parsing...")
-    parserr = BooleanParser(token_list)
-    parserr.parse()
