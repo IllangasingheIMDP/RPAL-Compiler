@@ -1,7 +1,7 @@
 import sys
 from typing import List, Dict, Tuple, Set, Optional, Union, Any
 from parser import ASTNode, parse_rpal
-from lexer import rpal_lexer
+from lexical import rpal_lexer
 
 # --- Standardized Tree Node ---
 class STNode:
@@ -22,13 +22,13 @@ class STNode:
         if self.value is not None:
             # Special handling for identifiers and strings for clarity
             if self.node_type == "identifier":
-                return f"ID:{self.value}"
+                return f"<ID:{self.value}>"
             elif self.node_type == "integer":
-                return f"INT:{self.value}"
+                return f"<INT:{self.value}>"
             elif self.node_type == "string":
-                return f"STR:{self.value}"
-            return f"{self.node_type}({self.value})"
-        return self.node_type
+                return f"<STR:{self.value}>"
+            return f"<{self.node_type}:{self.value}>"
+        return f"<{self.node_type}>"
     
     def __repr__(self):
         return self.__str__()
@@ -82,7 +82,7 @@ class StandardizationEngine:
                 gamma_node.add_child(self._standardize_node(e1_node))
                 return gamma_node
                 
-            elif d_node.node_type == "fcn_form":
+            elif d_node.node_type == "function_form":
                 # Function form: let f x1 x2 ... = E1 in E2
                 # => let f = lambda x1.lambda x2...E1 in E2
                 # => (lambda f.E2) (lambda x1.lambda x2...E1)
@@ -148,7 +148,7 @@ class StandardizationEngine:
                 if inner_binding.node_type == "=":
                     f_node = inner_binding.children[0]
                     e1_node = inner_binding.children[1]
-                elif inner_binding.node_type == "fcn_form":
+                elif inner_binding.node_type == "function_form":
                     # Handle function form: let rec f x1 x2 ... = E1 in E2
                     f_node = inner_binding.children[0]
                     params = inner_binding.children[1:-1]
@@ -246,7 +246,7 @@ class StandardizationEngine:
             else:
                 raise StandardizationError(f"Unexpected definition type in where: {d_node.node_type}")
 
-        elif node_type == "fcn_form":
+        elif node_type == "function_form":
             # P V1 V2 ... Vn = E => P = lambda V1.lambda V2...lambda Vn.E
             p_node = node.children[0]
             params = node.children[1:-1]
@@ -305,7 +305,7 @@ class StandardizationEngine:
                 equals_node.add_child(gamma_node)
                 return equals_node
                 
-            elif d_node.node_type == "fcn_form":
+            elif d_node.node_type == "function_form":
                 # Function form: rec f x1 x2 ... = E
                 # => f = Y(lambda f.lambda x1.lambda x2...E)
                 f_node = d_node.children[0]
@@ -562,8 +562,11 @@ class CSEMachine:
         self.env.bind("Print", CSEPrint())
         # Add other built-ins as needed
     
-    def evaluate(self, st_node: STNode) -> CSEValue:
+    def evaluate(self, st_node: STNode, ast_only=False) -> CSEValue:
         """Evaluate a standardized tree"""
+        if ast_only:
+            return None
+            
         self.control = [st_node]
         self.stack = []
         self.env_stack = []
@@ -947,73 +950,90 @@ def ast_to_st(ast_node: ASTNode) -> STNode:
     engine = StandardizationEngine()
     return engine.standardize(ast_node)
 
-def evaluate_rpal(input_string: str) -> CSEValue:
+def evaluate_rpal(input_string: str, ast_only=False) -> CSEValue:
     """Parse, standardize, and evaluate an RPAL program"""
-    print(f"Parsing: {input_string}")
+    if not ast_only:
+        print(f"Parsing: {input_string}")
+    
     ast = parse_rpal(input_string)
+    
+    if ast_only:
+        ast.print_tree(0)
+        return None
+    
     print("\nAST Structure:")
-    ast.print_tree()
+    ast.print_tree(0)
     
     print("\nStandardizing...")
     st = ast_to_st(ast)
     print("\nStandardized Tree (ST) Structure:")
-    st.print_tree()
+    st.print_tree(0)
     
     print("\nEvaluating...")
     machine = CSEMachine()
-    result = machine.evaluate(st)
-    print(f"Result: {result}")
+    result = machine.evaluate(st, ast_only)
+    
+    if not ast_only:
+        print(f"Result: {result}")
+    
     return result
 
 # --- Test Programs ---
 if __name__ == '__main__':
-    test_programs = [
-        # Simple arithmetic
-        "Print(1 + 2 * 3)",
-        
-        # Simple let expression
-        "let X = 3 in Print(X)",
-        
-        # Function application
-        "let f x = x + 1 in Print(f(5))",
-        
-        # Conditional
-        "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-        
-        # Recursive function
-        "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in Print(fact(5))",
-        
-        # Multi-parameter function
-        "let add x y = x + y in Print(add(3, 4))",
-        
-        # Tuple
-        "let T = 1, 2, 3 in Print(T)",
-        
-        # Where clause
-        "Print(X + Y) where X = 3 and Y = 4",
-        
-        # Lambda expression
-        "let double = fn x. x * 2 in Print(double(5))",
-        
-        # Boolean operations
-        "Print(true & false or true)"
-    ]
+    # Check if -ast switch is provided
+    ast_only = False
+    file_name = None
     
-    for i, program in enumerate(test_programs, 1):
-        print(f"\n======= Test Program {i} =======")
+    for arg in sys.argv[1:]:
+        if arg == "-ast":
+            ast_only = True
+        else:
+            file_name = arg
+    
+    if file_name:
         try:
-            evaluate_rpal(program)
+            with open(file_name, 'r') as file:
+                source = file.read()
+                evaluate_rpal(source, ast_only)
         except Exception as e:
             print(f"Error: {e}")
-        print("===============================")
-    
-    # Parse from file if provided
-    if len(sys.argv) > 1:
-        try:
-            with open(sys.argv[1], 'r') as file:
-                source = file.read()
-                print(f"\n======= Parsing file: {sys.argv[1]} =======")
-                evaluate_rpal(source)
-                print("===============================")
-        except Exception as e:
-            print(f"Error processing file: {e}")
+    else:
+        test_programs = [
+            # Simple arithmetic
+            "Print(1 + 2 * 3)",
+            
+            # Simple let expression
+            "let X = 3 in Print(X)",
+            
+            # Function application
+            "let f x = x + 1 in Print(f(5))",
+            
+            # Conditional
+            "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
+            
+            # Recursive function
+            "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in Print(fact(5))",
+            
+            # Multi-parameter function
+            "let add x y = x + y in Print(add(3, 4))",
+            
+            # Tuple
+            "let T = 1, 2, 3 in Print(T)",
+            
+            # Where clause
+            "Print(X + Y) where X = 3 and Y = 4",
+            
+            # Lambda expression
+            "let double = fn x. x * 2 in Print(double(5))",
+            
+            # Boolean operations
+            "Print(true & false or true)"
+        ]
+        
+        for i, program in enumerate(test_programs, 1):
+            print(f"\n======= Test Program {i} =======")
+            try:
+                evaluate_rpal(program, ast_only)
+            except Exception as e:
+                print(f"Error: {e}")
+            print("===============================")

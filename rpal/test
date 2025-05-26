@@ -1,1 +1,1 @@
-let Name = 'Hello' in Print(Name eq 'Hell' & true or false)
+let x=3 in Print(x,x**2)
