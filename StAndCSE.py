@@ -581,6 +581,24 @@ class CSEBuiltinFunction(CSEValue):
         raise NotImplementedError
     def __str__(self): return f"Builtin:{self.name}"
 
+class CSEStem(CSEBuiltinFunction):
+    def __init__(self):
+        super().__init__("stem")
+    def apply(self, machine: "CSEMachine", arg: CSEValue):
+        if isinstance(arg, CSEString):
+            machine.stack.append(CSEString(arg.value[1:] if len(arg.value) > 0 else ""))
+        else:
+            raise CSERuntimeError(f"Stem requires string argument, got {arg}")
+
+class CSEStern(CSEBuiltinFunction):
+    def __init__(self):
+        super().__init__("stern")
+    def apply(self, machine: "CSEMachine", arg: CSEValue):
+        if isinstance(arg, CSEString):
+            machine.stack.append(CSEString(arg.value[1:] if len(arg.value) > 0 else ""))
+        else:
+            raise CSERuntimeError(f"Stern requires string argument, got {arg}")
+
 class CSEYCombinator(CSEBuiltinFunction):
     def __init__(self):
         super().__init__("Y")
@@ -646,6 +664,8 @@ class CSEMachine:
         self.env.bind("Y", CSEYCombinator())
         self.env.bind("Print", CSEPrint())
         self.env.bind("Order", CSEOrder())
+        self.env.bind("stem", CSEStem())
+        self.env.bind("stern", CSEStern())
         # Add other built-ins as needed
     
     def evaluate(self, st_node: STNode, ast_only=False) -> CSEValue:
@@ -1185,9 +1205,8 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 1)",
-            "let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
-            
+            "Print( (fn f. f 'first letter missing in this sentence?') (fn x. stern x) )"
+          
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 

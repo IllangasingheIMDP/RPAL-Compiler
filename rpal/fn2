@@ -1,3 +1,1 @@
-Print( 
-	  (fn f. f 'first letter missing in this sentence?') (fn x. Stern x) 
-	 )
+Print( (fn f. f 'first letter missing in this sentence?') (fn x. Stern x) )

@@ -462,7 +462,10 @@ class Parser:
                self.check(TokenType.FALSE) or 
                self.check(TokenType.NIL) or 
                self.check(TokenType.LPAREN) or 
-               self.check(TokenType.DUMMY)):
+               self.check(TokenType.DUMMY) or
+               self.check(TokenType.STERN) or    # Added this line
+               self.check(TokenType.STEM)): 
+            
             
             rn_right_node = self.parse_Rn()
             
@@ -518,6 +521,13 @@ class Parser:
             self.match(TokenType.DUMMY)
             return ASTNode("dummy")
         
+        elif self.check(TokenType.STERN):
+            stern = self.match(TokenType.STERN)
+            return ASTNode("identifier", stern.value)
+
+        elif self.check(TokenType.STEM):
+            stem = self.match(TokenType.STEM)
+            return ASTNode("identifier", stem.value)
         else:
             raise SyntaxError(f"Unexpected token {self.current_token.type.value} at line {self.current_token.line}, column {self.current_token.column}")
     
