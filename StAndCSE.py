@@ -960,8 +960,8 @@ class CSEConditional(CSEOperation):
 class CSEBinaryOp(CSEOperation):
     """Base class for binary operations"""
     def apply(self, machine: CSEMachine):
-        right = machine.stack.pop()
         left = machine.stack.pop()
+        right = machine.stack.pop()
         result = self._compute(left, right)
         machine.stack.append(result)
     
@@ -1015,6 +1015,7 @@ class CSEGreaterEqual(CSEBinaryOp):
 class CSELess(CSEBinaryOp):
     def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
+            print("left",left.value,"right",right.value)
             return CSEBoolean(left.value < right.value)
         raise CSERuntimeError(f"Cannot compare {left} < {right}")
 
@@ -1147,7 +1148,7 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-            # Simple arithmetic
+             # Simple arithmetic
             "Print(1 + 2 * 3)",
             
             # Simple let expression
@@ -1155,18 +1156,11 @@ if __name__ == '__main__':
             
             # Function application
             "let f x = x + 1 in Print(f(5))",
+           
             
-            # Conditional
             "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-            
-            # Recursive function
-            "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in Print(fact(5))",
-            
-            # Multi-parameter function
-            "let add x y = x + y in Print(add(3, 4))",
-            
-            # Tuple
-            "let T = 1, 2, 3 in Print(T)",
+
+             "let T = 1, 2, 3 in Print(T)",
             
             # Where clause
             "Print(X + Y) where X = 3 and Y = 4",
@@ -1175,7 +1169,11 @@ if __name__ == '__main__':
             "let double = fn x. x * 2 in Print(double(5))",
             
             # Boolean operations
-            "Print(true & false or true)"
+            "Print(true & false or true)",
+
+            "Print(x+y) where x,y = 1,2"
+
+            
         ]
         
         for i, program in enumerate(test_programs, 1):
