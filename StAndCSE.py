@@ -454,6 +454,21 @@ class StandardizationEngine:
                 tau_node.add_child(std_child)
             return tau_node
 
+        elif node_type == "@":
+            # Convert @ operator to gamma structure
+            left = standardized_children[0]
+            fn = standardized_children[1]
+            right = standardized_children[2]
+            
+            gamma_inner = STNode("gamma")
+            gamma_inner.add_child(fn)
+            gamma_inner.add_child(left)
+            
+            gamma_outer = STNode("gamma")
+            gamma_outer.add_child(gamma_inner)
+            gamma_outer.add_child(right)
+            
+            return gamma_outer
         elif node_type == "->":
             # B -> E1 | E2 => -> B E1 E2
             cond_node = STNode("->")
@@ -736,7 +751,14 @@ class CSEMachine:
             self.control.append(CSEApply())
             self.control.append(node.children[0])  # Function
             self.control.append(node.children[1])  # Argument
-            
+        elif node_type == "@":
+            if self.debug:
+                print("Processing infix @ operator")
+            # Reverse order for infix: left @ fn @ right becomes gamma(gamma(fn, left), right)
+            self.control.append(CSEAtOperation())
+            self.control.append(node.children[2])  # Right operand
+            self.control.append(node.children[1])  # Function
+            self.control.append(node.children[0])  # Left operand
         elif node_type == "tuple_apply":
             if self.debug:
                 print("Preparing tuple unpacking application (tuple_apply)")
@@ -866,6 +888,22 @@ class CSEOperation:
         raise NotImplementedError
     def __str__(self): return self.__class__.__name__
 
+class CSEAtOperation(CSEOperation):
+    def apply(self, machine: CSEMachine):
+        right = machine.stack.pop()
+        fn = machine.stack.pop()
+        left = machine.stack.pop()
+        
+        # Create gamma application: (fn left) right
+        gamma_inner = STNode("gamma")
+        gamma_inner.add_child(fn)
+        gamma_inner.add_child(left)
+        
+        gamma_outer = STNode("gamma")
+        gamma_outer.add_child(gamma_inner)
+        gamma_outer.add_child(right)
+        
+        machine.control.append(gamma_outer)
 class CSEApply(CSEOperation):
     """Apply operation for function application"""
     def apply(self, machine: CSEMachine):
@@ -1214,7 +1252,7 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-            "let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'F' in Print (getGrade 65)"
+            "let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )"
           
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
