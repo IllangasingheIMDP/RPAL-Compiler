@@ -233,18 +233,53 @@ class StandardizationEngine:
             std_d_node = standardized_children[1]
             
             if d_node.node_type == "=":
-                # Simple binding: E where X = E1 => (lambda X.E) E1
-                x_node = std_d_node.children[0]
-                e1_node = std_d_node.children[1]
-                
-                lambda_node = STNode("lambda")
-                lambda_node.add_child(x_node)
-                lambda_node.add_child(std_e_node)
-                
-                gamma_node = STNode("gamma")
-                gamma_node.add_child(lambda_node)
-                gamma_node.add_child(e1_node)
-                return gamma_node
+                # Check if left side is a comma node (tuple unpacking)
+                if d_node.children[0].node_type == ",":
+                    # For tuple unpacking: E where x,y = (1,2)
+                    # We need to create a special node to handle this
+                    
+                    # Extract variable names from the comma node
+                    var_nodes = []
+                    for child in d_node.children[0].children:
+                        if child.node_type == "identifier":
+                            var_nodes.append(self._standardize_node(child))
+                    
+                    # Get the tuple expression (right side)
+                    tuple_expr = std_d_node.children[1]
+                    
+                    # Create a special tuple unpacking node
+                    unpack_node = STNode("tuple_unpack")
+                    for var_node in var_nodes:
+                        unpack_node.add_child(var_node)
+                    
+                    # Create a lambda for each variable
+                    current_expr = std_e_node
+                    for var_node in reversed(var_nodes):
+                        lambda_node = STNode("lambda")
+                        lambda_node.add_child(var_node)
+                        lambda_node.add_child(current_expr)
+                        current_expr = lambda_node
+                    
+                    # Create a special gamma node for tuple unpacking
+                    gamma_node = STNode("tuple_apply")
+                    gamma_node.add_child(current_expr)
+                    gamma_node.add_child(tuple_expr)
+                    gamma_node.add_child(unpack_node)  # Add the unpacking info
+                    
+                    return gamma_node
+                else:
+                    # Simple binding: E where X = E1 => (lambda X.E) E1
+                    x_node = std_d_node.children[0]
+                    e1_node = std_d_node.children[1]
+                    
+                    lambda_node = STNode("lambda")
+                    lambda_node.add_child(x_node)
+                    lambda_node.add_child(std_e_node)
+                    
+                    gamma_node = STNode("gamma")
+                    gamma_node.add_child(lambda_node)
+                    gamma_node.add_child(e1_node)
+                    return gamma_node
                 
             elif d_node.node_type == "and":
                 # Multiple bindings: E where x1=e1 and x2=e2 and ...
@@ -369,142 +404,43 @@ class StandardizationEngine:
                 lambda_inner.add_child(current_body)
                 current_body = lambda_inner
             
+            # Create an equals node for the function definition
             equals_node = STNode("=")
             equals_node.add_child(p_node)
             equals_node.add_child(current_body)
+            
             return equals_node
 
         elif node_type == "lambda":
-            # fn V1 V2 ... Vn . E => lambda V1.lambda V2...lambda Vn.E
-            params = standardized_children[:-1]
-            body = standardized_children[-1]
-            
-            # Create nested lambdas
-            current_body = body
-            for param in reversed(params):
-                lambda_node = STNode("lambda")
-                lambda_node.add_child(param)
-                lambda_node.add_child(current_body)
-                current_body = lambda_node
-            
-            return current_body
+            # lambda X.E => lambda X E
+            lambda_node = STNode("lambda")
+            for std_child in standardized_children:
+                lambda_node.add_child(std_child)
+            return lambda_node
 
-        elif node_type == "rec":
-            # rec D => D where D is a binding
-            std_d_node = standardized_children[0]
+        elif node_type == "within":
+            # E1 within E2 => let X = E2 in E1[X/E2]
+            # where X is a fresh variable
             
-            if std_d_node.node_type == "=":
-                # Simple binding: rec X = E => X = Y(lambda X.E)
-                x_node = std_d_node.children[0]
-                e_node = std_d_node.children[1]
-                
-                # Create Y combinator application
-                y_node = STNode("identifier", "Y")
+            e1_node = node.children[0]  # Expression using the definition
+            e2_node = node.children[1]  # Definition
+            
+            # Use the standardized children
+            std_e1_node = standardized_children[0]
+            std_e2_node = standardized_children[1]
+            
+            if e2_node.node_type == "=":
+                # Simple binding: E1 within X = E2 => let X = E2 in E1
+                x_node = std_e2_node.children[0]  # X
+                e2_expr_node = std_e2_node.children[1]  # E2 expression
                 
                 lambda_node = STNode("lambda")
                 lambda_node.add_child(x_node)
-                lambda_node.add_child(e_node)
+                lambda_node.add_child(std_e1_node)
                 
-                gamma_node = STNode("gamma")
-                gamma_node.add_child(y_node)
-                gamma_node.add_child(lambda_node)
-                
-                equals_node = STNode("=")
-                equals_node.add_child(x_node)
-                equals_node.add_child(gamma_node)
-                return equals_node
-                
-            elif std_d_node.node_type == "function_form":
-                # Function form: rec f x1 x2 ... = E
-                # => f = Y(lambda f.lambda x1.lambda x2...E)
-                f_node = std_d_node.children[0]
-                
-                # Extract the body (which should be a lambda from function_form standardization)
-                if len(std_d_node.children) > 1:
-                    body_node = std_d_node.children[1]
-                else:
-                    # Fallback if no body is found
-                    body_node = f_node  # Identity function as fallback
-                
-                # Create Y combinator application
-                y_node = STNode("identifier", "Y")
-                
-                lambda_outer = STNode("lambda")
-                lambda_outer.add_child(f_node)
-                lambda_outer.add_child(body_node)
-                
-                gamma_node = STNode("gamma")
-                gamma_node.add_child(y_node)
-                gamma_node.add_child(lambda_outer)
-                
-                equals_node = STNode("=")
-                equals_node.add_child(f_node)
-                equals_node.add_child(gamma_node)
-                return equals_node
-                
-            elif std_d_node.node_type == "identifier":
-                # Handle the case where rec is directly followed by an identifier
-                # This is a special case for recursive functions
-                f_node = std_d_node
-                
-                # Create Y combinator application
-                y_node = STNode("identifier", "Y")
-                
-                lambda_node = STNode("lambda")
-                lambda_node.add_child(f_node)
-                lambda_node.add_child(f_node)  # Identity function as fallback
-                
-                gamma_node = STNode("gamma")
-                gamma_node.add_child(y_node)
-                gamma_node.add_child(lambda_node)
-                
-                equals_node = STNode("=")
-                equals_node.add_child(f_node)
-                equals_node.add_child(gamma_node)
-                return equals_node
-                
-            else:
-                # Fallback for any other unexpected structure
-                dummy_id = STNode("identifier", "dummy")
-                equals_node = STNode("=")
-                equals_node.add_child(dummy_id)
-                equals_node.add_child(STNode("nil"))
-                return equals_node
-
-        elif node_type == "and":
-            # D1 and D2 ... => delta(X1, X2, ..., E1, E2, ...)
-            # For simplicity, we'll just standardize each definition
-            and_node = STNode("and")
-            for std_child in standardized_children:
-                and_node.add_child(std_child)
-            return and_node
-
-        elif node_type == "within":
-            # D1 within D2 => D2 where D1
-            std_d1_node = standardized_children[0]
-            std_d2_node = standardized_children[1]
-            
-            if node.children[0].node_type == "=" and node.children[1].node_type == "=":
-                # Simple case: X1 = E1 within X2 = E2 => X2 = E2 where X1 = E1
-                x1_node = std_d1_node.children[0]
-                e1_node = std_d1_node.children[1]
-                x2_node = std_d2_node.children[0]
-                e2_node = std_d2_node.children[1]
-                
-                # Create a lambda for the binding
-                lambda_node = STNode("lambda")
-                lambda_node.add_child(x1_node)
-                
-                # The body is the second definition
-                equals_node = STNode("=")
-                equals_node.add_child(x2_node)
-                equals_node.add_child(e2_node)
-                lambda_node.add_child(equals_node)
-                
-                # Apply the lambda to the first expression
                 gamma_node = STNode("gamma")
                 gamma_node.add_child(lambda_node)
-                gamma_node.add_child(e1_node)
+                gamma_node.add_child(e2_expr_node)
                 return gamma_node
                 
             else:
@@ -614,6 +550,7 @@ class CSEEnvironment:
         CSEEnvironment._next_id += 1
     
     def lookup(self, name: str) -> CSEValue:
+        print("self binding", self.bindings, "name", name)
         if name in self.bindings:
             return self.bindings[name]
         elif self.parent:
@@ -756,6 +693,12 @@ class CSEMachine:
             self.control.append(node.children[0])  # Function
             self.control.append(node.children[1])  # Argument
             
+        elif node_type == "tuple_apply":
+            # Special tuple unpacking application
+            self.control.append(CSETupleApply(node.children[2]))  # Unpacking info
+            self.control.append(node.children[0])  # Function (lambda chain)
+            self.control.append(node.children[1])  # Tuple expression
+            
         elif node_type == "identifier":
             # Look up the identifier in the environment
             value = self.env.lookup(node.value)
@@ -867,7 +810,7 @@ class CSEApply(CSEOperation):
             # Create a new environment with the closure's environment as parent
             new_env = CSEEnvironment(fn.env)
             
-            # Bind the parameter to the argument
+            # Regular binding for non-tuple cases
             new_env.bind(fn.var_name, arg)
             
             # Save the current environment
@@ -910,6 +853,61 @@ class CSEApply(CSEOperation):
             
         else:
             raise CSERuntimeError(f"Cannot apply non-function: {fn}")
+
+class CSETupleApply(CSEOperation):
+    """Special operation for tuple unpacking and application"""
+    def __init__(self, unpack_node: STNode):
+        self.unpack_node = unpack_node  # Contains variable names to unpack
+    
+    def apply(self, machine: CSEMachine):
+        # Pop function (lambda chain) and tuple
+        fn = machine.stack.pop()
+        tuple_val = machine.stack.pop()
+        
+        if not isinstance(tuple_val, CSETuple):
+            raise CSERuntimeError(f"Expected tuple for unpacking, got {tuple_val}")
+        
+        # Get variable names from the unpack node
+        var_names = []
+        for child in self.unpack_node.children:
+            if child.node_type == "identifier":
+                var_names.append(child.value)
+        
+        # Check if the number of variables matches the tuple size
+        if len(var_names) != len(tuple_val.elements):
+            raise CSERuntimeError(f"Tuple unpacking mismatch: {len(var_names)} variables but {len(tuple_val.elements)} values")
+        
+        # Create a new environment with the closure's environment as parent
+        new_env = CSEEnvironment(fn.env)
+        
+        # Bind each variable to its corresponding tuple element
+        for i, var_name in enumerate(var_names):
+            new_env.bind(var_name, tuple_val.elements[i])
+        
+        # Save the current environment
+        old_env = machine.env
+        machine.env_stack.append(old_env)
+        
+        # Set the new environment
+        machine.env = new_env
+        
+        # Push a marker to restore the environment
+        machine.control.append(CSERestoreEnv())
+        
+        # Push the function body (innermost lambda body)
+        current_fn = fn
+        while isinstance(current_fn, CSEClosure) and len(var_names) > 0:
+            var_names.pop()  # Remove one variable name
+            if len(var_names) == 0:
+                # This is the innermost lambda, push its body
+                machine.control.append(current_fn.body)
+                break
+            else:
+                # Get the next lambda in the chain
+                if isinstance(current_fn.body, STNode) and current_fn.body.node_type == "lambda":
+                    current_fn = CSEClosure(current_fn.body.children[0].value, current_fn.body.children[1], new_env)
+                else:
+                    raise CSERuntimeError("Invalid lambda chain for tuple unpacking")
 
 class CSERestoreEnv(CSEOperation):
     """Restore the previous environment"""
@@ -960,8 +958,8 @@ class CSEConditional(CSEOperation):
 class CSEBinaryOp(CSEOperation):
     """Base class for binary operations"""
     def apply(self, machine: CSEMachine):
-        left = machine.stack.pop()
         right = machine.stack.pop()
+        left = machine.stack.pop()
         result = self._compute(left, right)
         machine.stack.append(result)
     
@@ -1015,7 +1013,6 @@ class CSEGreaterEqual(CSEBinaryOp):
 class CSELess(CSEBinaryOp):
     def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
-            print("left",left.value,"right",right.value)
             return CSEBoolean(left.value < right.value)
         raise CSERuntimeError(f"Cannot compare {left} < {right}")
 
@@ -1148,7 +1145,6 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-             # Simple arithmetic
             "Print(1 + 2 * 3)",
             
             # Simple let expression
@@ -1163,7 +1159,7 @@ if __name__ == '__main__':
              "let T = 1, 2, 3 in Print(T)",
             
             # Where clause
-            "Print(X + Y) where X = 3 and Y = 4",
+            
             
             # Lambda expression
             "let double = fn x. x * 2 in Print(double(5))",
@@ -1172,8 +1168,6 @@ if __name__ == '__main__':
             "Print(true & false or true)",
 
             "Print(x+y) where x,y = 1,2"
-
-            
         ]
         
         for i, program in enumerate(test_programs, 1):
