@@ -550,7 +550,7 @@ class CSEEnvironment:
         CSEEnvironment._next_id += 1
     
     def lookup(self, name: str) -> CSEValue:
-        print("self binding", self.bindings, "name", name)
+        
         if name in self.bindings:
             return self.bindings[name]
         elif self.parent:
@@ -958,8 +958,9 @@ class CSEConditional(CSEOperation):
 class CSEBinaryOp(CSEOperation):
     """Base class for binary operations"""
     def apply(self, machine: CSEMachine):
-        right = machine.stack.pop()
         left = machine.stack.pop()
+        right = machine.stack.pop()
+        
         result = self._compute(left, right)
         machine.stack.append(result)
     
