@@ -996,8 +996,9 @@ class CSEConditional(CSEOperation):
 class CSEBinaryOp(CSEOperation):
     """Base class for binary operations"""
     def apply(self, machine: CSEMachine):
-        left = machine.stack.pop()
+        
         right = machine.stack.pop()
+        left = machine.stack.pop()
         
         result = self._compute(left, right)
         machine.stack.append(result)
@@ -1032,31 +1033,31 @@ class CSEDivide(CSEBinaryOp):
         raise CSERuntimeError(f"Cannot divide {left} by {right}")
 
 class CSEPower(CSEBinaryOp):
-    def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
+    def _compute(self, right: CSEValue, left: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             return CSEInteger(left.value ** right.value)
         raise CSERuntimeError(f"Cannot raise {left} to power {right}")
 
 class CSEGreater(CSEBinaryOp):
-    def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
+    def _compute(self, right: CSEValue, left: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             return CSEBoolean(left.value > right.value)
         raise CSERuntimeError(f"Cannot compare {left} > {right}")
 
 class CSEGreaterEqual(CSEBinaryOp):
-    def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
+    def _compute(self, right: CSEValue, left: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             return CSEBoolean(left.value >= right.value)
         raise CSERuntimeError(f"Cannot compare {left} >= {right}")
 
 class CSELess(CSEBinaryOp):
-    def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
+    def _compute(self, right: CSEValue, left: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             return CSEBoolean(left.value < right.value)
         raise CSERuntimeError(f"Cannot compare {left} < {right}")
 
 class CSELessEqual(CSEBinaryOp):
-    def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
+    def _compute(self, right: CSEValue, left: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             return CSEBoolean(left.value <= right.value)
         raise CSERuntimeError(f"Cannot compare {left} <= {right}")
@@ -1184,11 +1185,12 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-
-            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 6)",
+            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 1)",
             "let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
-
+            
         ]
+        #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
+
         
         for i, program in enumerate(test_programs, 1):
             print(f"\n======= Test Program {i} =======")
