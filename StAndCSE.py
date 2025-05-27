@@ -1185,7 +1185,8 @@ if __name__ == '__main__':
     else:
         test_programs = [
 
-            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 6)"
+            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 6)",
+            "let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 
         ]
         
