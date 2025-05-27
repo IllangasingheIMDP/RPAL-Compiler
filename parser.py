@@ -1,6 +1,6 @@
 import sys
 from typing import List, Optional, Union, Any, Tuple
-from lexer import Token, TokenType, rpal_lexer
+from lexical import Token, TokenType, rpal_lexer
 
 class ASTNode:
     """
@@ -26,7 +26,18 @@ class ASTNode:
     
     def print_tree(self, indent=0):
         """Print the tree with indentation"""
-        print("  " * indent + str(self))
+        if self.value is not None:
+            if self.node_type == "identifier":
+                print("." * indent + f"<ID:{self.value}>")
+            elif self.node_type == "integer":
+                print("." * indent + f"<INT:{self.value}>")
+            elif self.node_type == "string":
+                print("." * indent + f"<STR:{self.value}>")
+            else:
+                print("." * indent + f"<{self.node_type}:{self.value}>")
+        else:
+            print("." * indent + f"<{self.node_type}>")
+        
         for child in self.children:
             child.print_tree(indent + 1)
 
@@ -595,7 +606,7 @@ class Parser:
                 e_node = self.parse_E()
                 
                 # Create function form node
-                fcn_form_node = ASTNode("fcn_form")
+                fcn_form_node = ASTNode("function_form")
                 fcn_form_node.add_child(identifier_node)
                 
                 # Add all variable bindings
@@ -696,62 +707,73 @@ def parse_rpal(input_string: str) -> ASTNode:
 # ------------------------ Testing ------------------------
 
 if __name__ == '__main__':
-    # Test RPAL programs
-    test_programs = [
-        # Simple let expression
-        "let X = 3 in Print(X, X**2)",
-        
-        # Function definition with conditional
-        "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-        
-        # More complex expression with operators
-        "let f x = x + 1 in f(5) * 2",
-        
-        # String and boolean operations
-        "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
-        
-        # Nested let expressions
-        "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
-        
-        # Function with multiple parameters
-        "let add x y = x + y in add(3, 4)",
-        
-        # Recursive function
-        "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in fact(5)",
-        
-        # Tuple construction
-        "let T = 1, 2, 3 in Print(T)",
-        
-        # Where clause
-        "Print(X + Y) where X = 3 and Y = 4",
-        
-        # Lambda expression
-        "let double = fn x. x * 2 in double(5)"
-    ]
+    # Check if -ast switch is provided
+    ast_only = False
+    file_name = None
     
-    for i, program in enumerate(test_programs, 1):
-        print(f"\n🔍 Test Program {i}: {program}")
-        print("=" * 50)
-        
+    for arg in sys.argv[1:]:
+        if arg == "-ast":
+            ast_only = True
+        else:
+            file_name = arg
+    
+    if file_name:
         try:
-            ast = parse_rpal(program)
-            print("AST Structure:")
-            ast.print_tree()
-                
+            with open(file_name, 'r') as file:
+                source = file.read()
+                ast = parse_rpal(source)
+                if ast_only:
+                    ast.print_tree(0)
+                else:
+                    # Import and use StAndCSE for evaluation
+                    from StAndCSE import evaluate_rpal
+                    evaluate_rpal(source, ast_only=False)
         except Exception as e:
             print(f"Error: {e}")
+    else:
+        # Test RPAL programs
+        test_programs = [
+            # Simple let expression
+            "let X = 3 in Print(X, X**2)",
+            
+            # Function definition with conditional
+            "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
+            
+            # More complex expression with operators
+            "let f x = x + 1 in f(5) * 2",
+            
+            # String and boolean operations
+            "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
+            
+            # Nested let expressions
+            "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
+            
+            # Function with multiple parameters
+            "let add x y = x + y in add(3, 4)",
+            
+            # Recursive function
+            "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in fact(5)",
+            
+            # Tuple construction
+            "let T = 1, 2, 3 in Print(T)",
+            
+            # Where clause
+            "Print(X + Y) where X = 3 and Y = 4",
+            
+            # Lambda expression
+            "let double = fn x. x * 2 in double(5)"
+        ]
         
-        print()
-
-    # Parse from file if provided
-    if len(sys.argv) > 1:
-        try:
-            with open(sys.argv[1], 'r') as file:
-                source = file.read()
-                print(f"Parsing file: {sys.argv[1]}")
-                print("=" * 50)
-                ast = parse_rpal(source)
+        for i, program in enumerate(test_programs, 1):
+            print(f"\n🔍 Test Program {i}: {program}")
+            print("=" * 50)
+            
+            try:
+                ast = parse_rpal(program)
                 print("AST Structure:")
-                ast.print_tree()
-        except Exception as e:
-            print(f"Error parsing file: {e}")
+                ast.print_tree(0)
+                    
+            except Exception as e:
+                print(f"Error: {e}")
+            
+            print()

@@ -80,6 +80,9 @@ class TokenType(Enum):
     # Error
     ERROR = 'ERROR'
 
+    # Additional token for period (.)
+    PERIOD = 'PERIOD'       # .
+
 class Token(NamedTuple):
     type: TokenType
     value: str
@@ -163,6 +166,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
         ('RPAREN', r'\)'),
         ('SEMICOLON', r';'),
         ('COMMA', r','),
+        ('PERIOD', r'\.'),  # Added period token
         
         # Identifiers and Keywords (letters, digits, underscore)
         ('IDENTIFIER', r'[A-Za-z][A-Za-z0-9_]*'),
@@ -229,6 +233,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
                 'RPAREN': TokenType.RPAREN,
                 'SEMICOLON': TokenType.SEMICOLON,
                 'COMMA': TokenType.COMMA,
+                'PERIOD': TokenType.PERIOD,  # Added period token
                 'INTEGER': TokenType.INTEGER,
                 'STRING': TokenType.STRING,
             }
