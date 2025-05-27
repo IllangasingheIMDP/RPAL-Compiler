@@ -1,1 +1,1 @@
-Print(x+y) where x,y = 1,2
+let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 5)

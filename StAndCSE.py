@@ -636,6 +636,7 @@ class CSEMachine:
         self.stack = []
         self.env = CSEEnvironment()
         self.env_stack = []
+        self.debug = True  # Enable debug output
         
         # Initialize built-in functions
         self._init_builtins()
@@ -656,21 +657,30 @@ class CSEMachine:
         self.stack = []
         self.env_stack = []
         
+        step = 0
         while self.control:
-            # Debug output
-            # print(f"Control: {[str(c) for c in self.control]}")
-            # print(f"Stack: {[str(s) for s in self.stack]}")
-            # print(f"Env: {self.env}")
-            # print("---")
-            
+            if self.debug:
+                print(f"\n--- Step {step} ---")
+                print("Control:", [str(c) for c in self.control])
+                print("Stack:", [str(s) for s in self.stack])
+                print("Env:", self.env)
             item = self.control.pop()
-            
+            if self.debug:
+                print("Popped from control:", item)
             if isinstance(item, STNode):
+                if self.debug:
+                    print("Processing node:", item)
                 self._process_node(item)
             elif isinstance(item, CSEOperation):
+                if self.debug:
+                    print("Processing operation:", item)
                 item.apply(self)
             else:
                 raise CSERuntimeError(f"Invalid control item: {item}")
+            if self.debug:
+                print("Stack after step:", [str(s) for s in self.stack])
+                print("Env after step:", self.env)
+            step += 1
         
         if not self.stack:
             return CSENil()
@@ -680,65 +690,89 @@ class CSEMachine:
         """Process a node from the control stack"""
         node_type = node.node_type
         
+        if self.debug:
+            print(f"Processing node type: {node_type}")
+        
         if node_type == "lambda":
-            # Create a closure with the current environment
             var_name = node.children[0].value
             body = node.children[1]
             closure = CSEClosure(var_name, body, self.env)
+            if self.debug:
+                print(f"Created closure for var '{var_name}' with env {self.env}")
             self.stack.append(closure)
             
         elif node_type == "gamma":
-            # Function application
+            if self.debug:
+                print("Preparing function application (gamma)")
             self.control.append(CSEApply())
             self.control.append(node.children[0])  # Function
             self.control.append(node.children[1])  # Argument
             
         elif node_type == "tuple_apply":
-            # Special tuple unpacking application
+            if self.debug:
+                print("Preparing tuple unpacking application (tuple_apply)")
             self.control.append(CSETupleApply(node.children[2]))  # Unpacking info
             self.control.append(node.children[0])  # Function (lambda chain)
             self.control.append(node.children[1])  # Tuple expression
             
         elif node_type == "identifier":
-            # Look up the identifier in the environment
+            if self.debug:
+                print(f"Looking up identifier: {node.value}")
             value = self.env.lookup(node.value)
+            if self.debug:
+                print(f"Looked up identifier '{node.value}': {value}")
             self.stack.append(value)
             
         elif node_type == "integer":
+            if self.debug:
+                print(f"Pushing integer: {node.value}")
             self.stack.append(CSEInteger(node.value))
             
         elif node_type == "string":
+            if self.debug:
+                print(f"Pushing string: {node.value}")
             self.stack.append(CSEString(node.value))
             
         elif node_type == "true":
+            if self.debug:
+                print("Pushing boolean: true")
             self.stack.append(CSEBoolean(True))
             
         elif node_type == "false":
+            if self.debug:
+                print("Pushing boolean: false")
             self.stack.append(CSEBoolean(False))
             
         elif node_type == "nil":
+            if self.debug:
+                print("Pushing nil")
             self.stack.append(CSENil())
             
         elif node_type == "dummy":
+            if self.debug:
+                print("Pushing dummy")
             self.stack.append(CSEDummy())
             
         elif node_type == "tau":
-            # Create a tuple
             n = len(node.children)
+            if self.debug:
+                print(f"Preparing tuple of size {n}")
             self.control.append(CSETupleConstructor(n))
             for child in reversed(node.children):
                 self.control.append(child)
                 
         elif node_type == "->":
-            # Conditional
             condition = node.children[0]
             then_branch = node.children[1]
             else_branch = node.children[2]
+            if self.debug:
+                print("Preparing conditional (->)")
             self.control.append(CSEConditional(then_branch, else_branch))
             self.control.append(condition)
             
         elif node_type in ["+", "-", "*", "/", "**"]:
-            # Binary arithmetic operations
+            if self.debug:
+                print(f"Preparing binary arithmetic operation: {node_type}")
             op_map = {
                 "+": CSEAdd(),
                 "-": CSESubtract(),
@@ -751,7 +785,8 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["gr", "ge", "ls", "le", "eq", "ne"]:
-            # Comparison operations
+            if self.debug:
+                print(f"Preparing comparison operation: {node_type}")
             op_map = {
                 "gr": CSEGreater(),
                 "ge": CSEGreaterEqual(),
@@ -765,7 +800,8 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["or", "&"]:
-            # Boolean operations
+            if self.debug:
+                print(f"Preparing boolean operation: {node_type}")
             op_map = {
                 "or": CSEOr(),
                 "&": CSEAnd()
@@ -775,7 +811,8 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["neg", "not"]:
-            # Unary operations
+            if self.debug:
+                print(f"Preparing unary operation: {node_type}")
             op_map = {
                 "neg": CSENeg(),
                 "not": CSENot()
@@ -784,7 +821,8 @@ class CSEMachine:
             self.control.append(node.children[0])
             
         elif node_type == "aug":
-            # Tuple augmentation
+            if self.debug:
+                print("Preparing tuple augmentation (aug)")
             self.control.append(CSEAug())
             self.control.append(node.children[0])
             self.control.append(node.children[1])
@@ -975,7 +1013,7 @@ class CSEAdd(CSEBinaryOp):
 class CSESubtract(CSEBinaryOp):
     def _compute(self, left: CSEValue, right: CSEValue) -> CSEValue:
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
-            return CSEInteger(left.value - right.value)
+            return CSEInteger(right.value - left.value)
         raise CSERuntimeError(f"Cannot subtract {right} from {left}")
 
 class CSEMultiply(CSEBinaryOp):
@@ -989,7 +1027,7 @@ class CSEDivide(CSEBinaryOp):
         if isinstance(left, CSEInteger) and isinstance(right, CSEInteger):
             if right.value == 0:
                 raise CSERuntimeError("Division by zero")
-            return CSEInteger(left.value // right.value)
+            return CSEInteger(right.value // left.value)
         raise CSERuntimeError(f"Cannot divide {left} by {right}")
 
 class CSEPower(CSEBinaryOp):
@@ -1145,29 +1183,9 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-            "Print(1 + 2 * 3)",
-            
-            # Simple let expression
-            "let X = 3 in Print(X)",
-            
-            # Function application
-            "let f x = x + 1 in Print(f(5))",
-           
-            
-            "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
 
-             "let T = 1, 2, 3 in Print(T)",
-            
-            # Where clause
-            
-            
-            # Lambda expression
-            "let double = fn x. x * 2 in Print(double(5))",
-            
-            # Boolean operations
-            "Print(true & false or true)",
+            "let OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OddEven 6)"
 
-            "Print(x+y) where x,y = 1,2"
         ]
         
         for i, program in enumerate(test_programs, 1):
