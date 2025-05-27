@@ -1,1 +1,10 @@
+<<<<<<< Updated upstream
 let Name = 'Hello' in Print(Name eq 'Hell' & true or false)
+=======
+let rec fact (n) =
+    n le 1
+	  ->  1
+	  |  n * fact(n - 1)
+in
+Print(fact(3))
+>>>>>>> Stashed changes
