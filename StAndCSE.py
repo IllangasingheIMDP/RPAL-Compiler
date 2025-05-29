@@ -529,7 +529,7 @@ class StandardizationEngine:
             return comma_node
 
         # --- Operators ---
-        elif node_type in ["aug", "or", "&", "not", "gr", "ge", "ls", "le", "eq", "ne", "+", "-", "*", "/", "**", "neg", "@"]:
+        elif node_type in ["aug", "or","and", "&", "not", "gr", "ge", "ls", "le", "eq", "ne", "+", "-", "*", "/", "**", "neg", "@"]:
             op_node = STNode(node_type)
             for std_child in standardized_children:
                 op_node.add_child(std_child)
@@ -759,10 +759,10 @@ class CSEMachine:
     def _process_node(self, node: STNode):
         """Process a node from the control stack"""
         node_type = node.node_type
-        
+
         if self.debug:
             print(f"Processing node type: {node_type}")
-        
+
         if node_type == "lambda":
             var_name = node.children[0].value
             body = node.children[1]
@@ -791,7 +791,12 @@ class CSEMachine:
             self.control.append(CSETupleApply(node.children[2]))  # Unpacking info
             self.control.append(node.children[0])  # Function (lambda chain)
             self.control.append(node.children[1])  # Tuple expression
-            
+
+        elif node_type == "Ystar":
+            if self.debug:
+                print("Pushing Ystar node to stack")
+            self.stack.append(node)
+
         elif node_type == "identifier":
             if self.debug:
                 print(f"Looking up identifier: {node.value}")
@@ -933,7 +938,43 @@ class CSEAtOperation(CSEOperation):
 class CSEApply(CSEOperation):
     """Apply operation for function application"""
     def apply(self, machine: CSEMachine):
-        # Pop function and argument
+        # --- Handle Ystar + Closure pattern for neta closure creation ---
+        if (
+            len(machine.stack) >= 2 and
+            isinstance(machine.stack[-1], STNode) and machine.stack[-1].node_type == "Ystar" and
+            isinstance(machine.stack[-2], CSEClosure)
+        ):
+            if machine.debug:
+                print("Detected Ystar and Closure pattern on stack for neta closure creation")
+            ystar_node = machine.stack.pop()  # Remove Ystar node
+            closure = machine.stack.pop()     # Remove closure
+
+            # Create a neta closure (recursive closure) with same attributes as closure
+            neta_closure = CSERecursiveClosure(closure)
+            if machine.debug:
+                print(f"Created neta closure: {neta_closure}")
+            machine.stack.append(neta_closure)
+            return  # Do not proceed with normal apply
+
+        # --- Handle neta closure on stack for recursion ---
+        if (
+            len(machine.stack) >= 1 and
+            isinstance(machine.stack[-1], CSERecursiveClosure)
+        ):
+            neta = machine.stack[-1]
+            if machine.debug:
+                print("Detected neta closure on stack for recursion handling")
+            # Instead of popping CSEApply, append another CSEApply to control (leave the current one)
+            machine.control.append(CSEApply())
+            machine.control.append(CSEApply())
+            # Instead of popping neta, create a lambda closure with same attributes and push to stack
+            lambda_closure = CSEClosure(neta.var_name, neta.body, neta.env)
+            if machine.debug:
+                print(f"Created lambda closure from neta closure: {lambda_closure}")
+            machine.stack.append(lambda_closure)
+            return  # Do not proceed with normal apply
+
+        # --- Normal function application ---
         fn = machine.stack.pop()
         arg = machine.stack.pop()
         
@@ -984,7 +1025,6 @@ class CSEApply(CSEOperation):
             
         else:
             raise CSERuntimeError(f"Cannot apply non-function: {fn}")
-
 class CSETupleApply(CSEOperation):
     """Special operation for tuple unpacking and application"""
     def __init__(self, unpack_node: STNode):
@@ -1279,7 +1319,11 @@ if __name__ == '__main__':
     else:
         test_programs = [
             #"let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )",
-            "let rec fact n = n eq 0 ->1|n * (fact (n - 1)) in Print(fact 5)"          
+            "let rec fact n = n eq 0 ->1|n * (fact (n - 1)) in Print(fact 6)"    
+            #"let  rec OddEvenRec n = n eq 1 -> 'Odd' | n eq 0 -> 'Even' | OddEvenRec (n-2) in Print ( OddEvenRec 2)",
+            #"let findMax a b c = (Isinteger a) & (Isinteger b) & (Isinteger c) -> a > b -> a > c -> a | c | c > b -> c | b | 'Error' in Print (findMax 4 6 2, findMax (-6) (-2) (-4), findMax 4 2 6, findMax 2 6 4)"
+            #"let rec sumuptoSeries a b = a > b -> nil | (sumuptoSeries (a+1) b, Print ' ', Print (Sumupto a)) where rec Sumupto n = n eq 0 -> 0 | n + Sumupto (n-1) in sumuptoSeries 3 10"
+            #"let OEList T = OEListRec (T, Order T) where rec OEListRec (T, i) = i eq 0 -> nil (OEListRec (T, (i-1)) aug (OddEven (T i))) where OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OEList (3, 5, 121, 10, 12))"
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 
