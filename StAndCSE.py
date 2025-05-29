@@ -656,17 +656,76 @@ class CSEYCombinator(CSEBuiltinFunction):
         if not isinstance(arg, CSEClosure):
             raise CSERuntimeError(f"Y combinator requires a function argument, got {arg}")
         
-        # Create a recursive closure
+        # Create a recursive closure and bind it to the environment
+        print(f"Creating recursive closure for {arg.var_name}")
         rec_closure = CSERecursiveClosure(arg)
+        
+        # Create new environment with recursive binding
+        new_env = CSEEnvironment(arg.env)
+        new_env.bind(arg.var_name, rec_closure)
+        
+        # Save current environment
+        machine.env_stack.append(machine.env)
+        machine.env = new_env
+        
+        # Push restore environment operation
+        machine.control.append(CSERestoreEnv())
+        
+        # Push the actual body for evaluation
+        machine.control.append(arg.body)
+        
+        # Push the recursive closure back on the stack
         machine.stack.append(rec_closure)
-
 class CSERecursiveClosure(CSEClosure):
     def __init__(self, eta_closure: CSEClosure):
         super().__init__(eta_closure.var_name, eta_closure.body, eta_closure.env)
         self.eta_closure = eta_closure
     
     def __str__(self): return f"RecClosure({self.eta_closure})"
-
+    
+    def apply(self, machine: "CSEMachine", arg: CSEValue):
+        print(f"Applying recursive closure {self.var_name} with arg {arg}")
+        print("_"*100)
+        # Create new environment with the recursive function bound to itself
+        new_env = CSEEnvironment(self.env)
+        new_env.bind(self.var_name, self)  # Bind the recursive closure to itself
+        
+        # Save the current environment
+        old_env = machine.env
+        machine.env_stack.append(old_env)
+        
+        # Set the new environment and bind the argument
+        machine.env = new_env
+        machine.env.bind(self.eta_closure.var_name, arg)
+        
+        # Push a marker to restore the environment
+        machine.control.append(CSERestoreEnv())
+        
+        # Push the function body for evaluation
+        machine.control.append(self.eta_closure.body)
+        
+        # Evaluate the body fully until a value is produced
+        while machine.control:
+            item = machine.control.pop()
+            if isinstance(item, STNode):
+                print(f"Processing node: {item}")
+                machine._process_node(item)
+                
+            elif isinstance(item, CSEOperation):
+                print(f"Applying operation: {item}")
+                item.apply(machine)
+            else:
+                raise CSERuntimeError(f"Invalid control item: {item}")
+            # Check if the top of the stack is a value (not a closure or operation)
+            if machine.stack and not isinstance(machine.stack[-1], (CSEClosure, CSERecursiveClosure, CSEBuiltinFunction)):
+                break
+        
+        # Ensure a value is produced
+        if not machine.stack:
+            raise CSERuntimeError("No value produced after evaluating recursive closure")
+        result = machine.stack.pop()
+        machine.stack.append(result)  # Push the result back for the next operation
+        
 class CSEPrint(CSEBuiltinFunction):
     def __init__(self):
         super().__init__("Print")
@@ -770,7 +829,13 @@ class CSEMachine:
             if self.debug:
                 print(f"Created closure for var '{var_name}' with env {self.env}")
             self.stack.append(closure)
-            
+        elif node_type == "Ystar":
+            if self.debug:
+                print(f"Looking up Y combinator for Ystar")
+            y_combinator = self.env.lookup("Y")
+            if self.debug:
+                print(f"Pushing Y combinator: {y_combinator}")
+            self.stack.append(y_combinator)
         elif node_type == "gamma":
             if self.debug:
                 print("Preparing function application (gamma)")
@@ -930,60 +995,6 @@ class CSEAtOperation(CSEOperation):
         gamma_outer.add_child(right)
         
         machine.control.append(gamma_outer)
-class CSEApply(CSEOperation):
-    """Apply operation for function application"""
-    def apply(self, machine: CSEMachine):
-        # Pop function and argument
-        fn = machine.stack.pop()
-        arg = machine.stack.pop()
-        
-        if isinstance(fn, CSEClosure):
-            # Create a new environment with the closure's environment as parent
-            new_env = CSEEnvironment(fn.env)
-            
-            # Regular binding for non-tuple cases
-            new_env.bind(fn.var_name, arg)
-            
-            # Save the current environment
-            old_env = machine.env
-            machine.env_stack.append(old_env)
-            
-            # Set the new environment
-            machine.env = new_env
-            
-            # Push a marker to restore the environment
-            machine.control.append(CSERestoreEnv())
-            
-            # Push the function body
-            machine.control.append(fn.body)
-            
-        elif isinstance(fn, CSEBuiltinFunction):
-            # Apply the built-in function
-            fn.apply(machine, arg)
-            
-        elif isinstance(fn, CSERecursiveClosure):
-            # Apply the eta closure to the recursive closure itself
-            new_env = CSEEnvironment(fn.env)
-            new_env.bind(fn.var_name, fn)
-            
-            # Save the current environment
-            old_env = machine.env
-            machine.env_stack.append(old_env)
-            
-            # Set the new environment
-            machine.env = new_env
-            
-            # Push a marker to restore the environment
-            machine.control.append(CSERestoreEnv())
-            
-            # Push the function body
-            machine.control.append(fn.body)
-            
-            # Push the argument back on the stack
-            machine.stack.append(arg)
-            
-        else:
-            raise CSERuntimeError(f"Cannot apply non-function: {fn}")
 
 class CSETupleApply(CSEOperation):
     """Special operation for tuple unpacking and application"""
@@ -1039,7 +1050,58 @@ class CSETupleApply(CSEOperation):
                     current_fn = CSEClosure(current_fn.body.children[0].value, current_fn.body.children[1], new_env)
                 else:
                     raise CSERuntimeError("Invalid lambda chain for tuple unpacking")
+class CSEApply(CSEOperation):
+    """Apply operation for function application"""
+    def apply(self, machine: CSEMachine):
+        # Pop function and argument
+        fn = machine.stack.pop()
+        arg = machine.stack.pop()
+        print(f"Applying function: {type(fn)} to argument: {arg}")
 
+        if isinstance(fn, CSEYCombinator):
+            # Handle Y combinator application
+            if not isinstance(arg, CSEClosure):
+                raise CSERuntimeError(f"Y combinator requires a function argument, got {arg}")
+            
+            # Create a recursive closure
+            print(f"Creating recursive closure for {arg.var_name}")
+            rec_closure = CSERecursiveClosure(arg)
+            
+            # Create new environment with recursive binding
+            new_env = CSEEnvironment(arg.env)
+            new_env.bind(arg.var_name, rec_closure)
+            
+            # Save current environment
+            machine.env_stack.append(machine.env)
+            machine.env = new_env
+            
+            # Push restore environment operation
+            machine.control.append(CSERestoreEnv())
+            
+            # Push the recursive closure back on the stack (no argument yet, applied later)
+            machine.stack.append(rec_closure)
+        
+        elif isinstance(fn, CSERecursiveClosure):
+            # Apply recursive closure by delegating to its apply method
+            fn.apply(machine, arg)
+        elif isinstance(fn, CSEClosure):
+            # Apply regular closure
+            new_env = CSEEnvironment(fn.env)
+            new_env.bind(fn.var_name, arg)
+            
+            old_env = machine.env
+            machine.env_stack.append(old_env)
+            machine.env = new_env
+            
+            machine.control.append(CSERestoreEnv())
+            machine.control.append(fn.body)
+        
+        elif isinstance(fn, CSEBuiltinFunction):
+            # Apply built-in function
+            fn.apply(machine, arg)
+        
+        else:
+            raise CSERuntimeError(f"Cannot apply non-function: {fn}")
 class CSERestoreEnv(CSEOperation):
     """Restore the previous environment"""
     def apply(self, machine: CSEMachine):
@@ -1279,7 +1341,7 @@ if __name__ == '__main__':
     else:
         test_programs = [
             #"let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )",
-            "let rec fact n = n eq 0 ->1|n * (fact (n - 1)) in Print(fact 5)"          
+            "let rec fact n = n eq 0 ->1|n * (fact (n - 1)) in Print(fact 6)"          
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 
