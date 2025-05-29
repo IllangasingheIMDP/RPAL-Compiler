@@ -378,6 +378,32 @@ class StandardizationEngine:
             
             else:
                 raise StandardizationError(f"Unexpected definition type in where: {d_node.node_type}")
+        elif node_type == "rec":
+        # rec = (X E) => = X (gamma Ystar (lambda X E))
+            eq_node = node.children[0]
+            std_eq_node = self._standardize_node(eq_node)
+            if std_eq_node.node_type == "=" and len(std_eq_node.children) == 2:
+             x_node = std_eq_node.children[0]
+             e_node = std_eq_node.children[1]
+
+            # Build lambda X E
+             lambda_node = STNode("lambda")
+             lambda_node.add_child(x_node)
+             lambda_node.add_child(e_node)
+
+            # Build gamma Ystar (lambda X E)
+             gamma_node = STNode("gamma")
+             ystar_node = STNode("Ystar")  # or STNode("identifier", "Ystar") if that's your convention
+             gamma_node.add_child(ystar_node)
+             gamma_node.add_child(lambda_node)
+
+            # Build = X (gamma ...)
+             eq_std_node = STNode("=")
+             eq_std_node.add_child(x_node)
+             eq_std_node.add_child(gamma_node)
+             return eq_std_node
+            else:
+             raise StandardizationError("Malformed 'rec' node: expected '=' as child.")
 
         elif node_type == "function_form":
             # P V1 V2 ... Vn = E => P = lambda V1.lambda V2...lambda Vn.E
@@ -1252,8 +1278,8 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
-            "let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )"
-          
+            #"let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )",
+            "let rec fact n = n eq 0 ->1|n * (fact (n - 1)) in Print(fact 5)"          
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 
