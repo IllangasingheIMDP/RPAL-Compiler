@@ -744,34 +744,7 @@ if __name__ == '__main__':
         # Test RPAL programs
         test_programs = [
             # Simple let expression
-            "let X = 3 in Print(X, X**2)",
-            
-            # Function definition with conditional
-            "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-            
-            # More complex expression with operators
-            "let f x = x + 1 in f(5) * 2",
-            
-            # String and boolean operations
-            "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
-            
-            # Nested let expressions
-            "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
-            
-            # Function with multiple parameters
-            "let add x y = x + y in add(3, 4)",
-            
-            # Recursive function
-            "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in fact(5)",
-            
-            # Tuple construction
-            "let T = 1, 2, 3 in Print(T)",
-            
-            # Where clause
-            "Print(X + Y) where X = 3 and Y = 4",
-            
-            # Lambda expression
-            "let double = fn x. x * 2 in double(5)"
+            "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
         ]
         
         for i, program in enumerate(test_programs, 1):

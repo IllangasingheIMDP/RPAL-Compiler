@@ -123,7 +123,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
         'dummy': TokenType.DUMMY,
         'within': TokenType.WITHIN,
         'aug': TokenType.AUG,
-        'conc': TokenType.CONC,
+        'conc': TokenType.IDENTIFIER,
         'stern': TokenType.STERN,
         'stem': TokenType.STEM,
         'Istuple': TokenType.ISTUPLE,
@@ -250,23 +250,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
 if __name__ == '__main__':
     # Test RPAL programs
     test_programs = [
-        # Simple let expression
-        "let X = 3 in Print(X, X**2)",
-        
-        # Function definition with conditional
-        "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-        
-        # More complex expression with operators
-        "let f x = x + 1 in f(5) * 2",
-        
-        # String and boolean operations
-        "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
-        
-        # Nested let expressions
-        "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
-        
-        # Comment test
-        "let X = 42 // this is a comment\nin Print(X)"
+        "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
     ]
     
     for i, program in enumerate(test_programs, 1):
@@ -287,12 +271,4 @@ if __name__ == '__main__':
         
         print()
 
-    # Additional test for error handling
-    print("\n🚨 Error Test:")
-    print("=" * 30)
-    error_test = "let X = 3 $ invalid"
-    tokens = rpal_lexer(error_test)
-    for token in tokens:
-        if token.type == TokenType.EOF:
-            break
-        print(f"({token.type.value}, '{token.value}') at line {token.line}, col {token.column}")
+    
