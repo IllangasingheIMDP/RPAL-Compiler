@@ -736,7 +736,7 @@ if __name__ == '__main__':
                     ast.print_tree(0)
                 else:
                     # Import and use StAndCSE for evaluation
-                    from StAndCSE import evaluate_rpal
+                    from CSE import evaluate_rpal
                     evaluate_rpal(source, ast_only=False)
         except Exception as e:
             print(f"Error: {e}")

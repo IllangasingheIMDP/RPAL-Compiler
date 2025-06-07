@@ -774,11 +774,13 @@ if __name__ == '__main__':
     else:
         test_programs = [
             #"let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )",
-            "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
+            #"let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
        #"let  rec OddEvenRec n = n eq 1 -> 'Odd' | n eq 0 -> 'Even' | OddEvenRec (n-2) in Print ( OddEvenRec 2)",
             #"let findMax a b c = (Isinteger a) & (Isinteger b) & (Isinteger c) -> a > b -> a > c -> a | c | c > b -> c | b | 'Error' in Print (findMax 4 6 2, findMax (-6) (-2) (-4), findMax 4 2 6, findMax 2 6 4)"
             #"let rec sumuptoSeries a b = a > b -> nil | (sumuptoSeries (a+1) b, Print ' ', Print (Sumupto a)) where rec Sumupto n = n eq 0 -> 0 | n + Sumupto (n-1) in sumuptoSeries 3 10"
             #"let OEList T = OEListRec (T, Order T) where rec OEListRec (T, i) = i eq 0 -> nil (OEListRec (T, (i-1)) aug (OddEven (T i))) where OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OEList (3, 5, 121, 10, 12))"
+        "let Sum(A) = Psum (A,Order A ) where rec Psum (T,N) = N eq 0 -> 0 | Psum(T,N-1)+T N in Print ( Sum (1,2,3,4,5) )"
+
         ]
         #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
 

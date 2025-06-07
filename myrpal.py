@@ -2,7 +2,7 @@
 import sys
 from lexical import rpal_lexer
 from parser import parse_rpal
-from StAndCSE import evaluate_rpal
+from CSE import evaluate_rpal
 
 def main():
     # Check if -ast switch is provided
