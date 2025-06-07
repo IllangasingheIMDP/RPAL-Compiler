@@ -2,16 +2,19 @@
 import sys
 from lexical import rpal_lexer
 from parser import parse_rpal
-from StAndCSE import evaluate_rpal
+from cse import evaluate_rpal
 
 def main():
     # Check if -ast switch is provided
-    ast_only = False
+    ast_show = False
+    st_show = False
     file_name = None
-    
+
     for arg in sys.argv[1:]:
         if arg == "-ast":
-            ast_only = True
+            ast_show = True
+        elif arg == "-st":
+            st_show = True
         else:
             file_name = arg
     
@@ -22,7 +25,7 @@ def main():
     try:
         with open(file_name, 'r') as file:
             source = file.read()
-            evaluate_rpal(source, ast_only)
+            evaluate_rpal(source, ast_show, st_show)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

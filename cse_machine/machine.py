@@ -167,9 +167,6 @@ class CSEMachine:
         
         # Get the linearized control structures from the ST
         self.control_structures = self._linearizer.linearize(st_tree)
-        print("\nLinearized Control Structures:")
-        self._linearizer.print_control_structures()
-        print("\nBeginning Execution...")
         # Initialize the CSE machine
         self.initialize()
         
