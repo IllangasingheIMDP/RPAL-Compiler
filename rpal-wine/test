@@ -1,0 +1,17 @@
+let rec findPalindromes(startNum, endNum) =  
+        startNum > endNum -> nil  
+      | isNumPalindrome(endNum) -> (findPalindromes(startNum, endNum - 1) aug endNum)  
+      | findPalindromes(startNum, endNum - 1)  
+
+where  
+    rec isNumPalindrome(n) =  
+        n eq reverseNumber(n, 0) -> true  
+      | false  
+
+    where  
+        rec reverseNumber(n, rev) =  
+            n eq 0 -> rev  
+          | reverseNumber(n / 10, rev * 10 + (n - (n / 10) * 10))  
+
+in  
+    Print(findPalindromes(10, 200))  

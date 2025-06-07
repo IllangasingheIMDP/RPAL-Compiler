@@ -2,13 +2,16 @@ import re
 from enum import Enum
 from typing import List, Tuple, NamedTuple
 
+# -----------------------------------------------------------
+# TokenType: Enumeration of all possible token types in RPAL
+# -----------------------------------------------------------
 class TokenType(Enum):
     # Literals
-    IDENTIFIER = 'IDENTIFIER'
-    INTEGER = 'INTEGER'
-    STRING = 'STRING'
+    IDENTIFIER = 'IDENTIFIER'   # Variable/function names
+    INTEGER = 'INTEGER'         # Integer literals
+    STRING = 'STRING'           # String literals
     
-    # Keywords
+    # Keywords (reserved words in RPAL)
     LET = 'LET'
     IN = 'IN'
     WHERE = 'WHERE'
@@ -44,7 +47,7 @@ class TokenType(Enum):
     NULL = 'NULL'
     PRINT = 'PRINT'
     
-    # Operators
+    # Arithmetic and special operators
     PLUS = 'PLUS'           # +
     MINUS = 'MINUS'         # -
     MULTIPLY = 'MULTIPLY'   # *
@@ -58,38 +61,45 @@ class TokenType(Enum):
     GREATER = 'GREATER'     # >
     GREATER_EQ = 'GREATER_EQ' # >=
     EQUALS = 'EQUALS'       # =
-    NOT_EQUALS = 'NOT_EQUALS' # ne
+    NOT_EQUALS = 'NOT_EQUALS' # <>
     
-    # Punctuation
+    # Punctuation symbols
     LPAREN = 'LPAREN'       # (
     RPAREN = 'RPAREN'       # )
     SEMICOLON = 'SEMICOLON' # ;
     COMMA = 'COMMA'         # ,
     
-    # Special operators
+    # Special operators and tokens
     CONDITIONAL = 'CONDITIONAL'  # ->
     BAR = 'BAR'             # |
     AMPERSAND = 'AMPERSAND' # &
+    TAU = 'TAU'             # tau (tuple constructor)
+    PERIOD = 'PERIOD'       # .
     
-    # Special tokens
-    TAU = 'TAU'            # tau (tuple constructor)
-    
-    # End of file
+    # End of file and error
     EOF = 'EOF'
-    
-    # Error
     ERROR = 'ERROR'
 
+# -----------------------------------------------------------
+# Token: Structure to hold information about a single token
+# -----------------------------------------------------------
 class Token(NamedTuple):
-    type: TokenType
-    value: str
-    line: int
-    column: int
+    type: TokenType   # The type of the token (from TokenType)
+    value: str        # The actual string value of the token
+    line: int         # Line number where the token appears
+    column: int       # Column number where the token starts
 
+# -----------------------------------------------------------
+# rpal_lexer: The main lexical analyzer for RPAL source code
+# -----------------------------------------------------------
 def rpal_lexer(input_string: str) -> List[Token]:
     """
     RPAL Lexical Analyzer
-    
+
+    Converts an input RPAL program string into a list of tokens.
+    Handles keywords, identifiers, literals, operators, punctuation, and comments.
+    Tracks line and column numbers for error reporting.
+
     Based on RPAL lexicon specification:
     - Identifier: Letter (Letter | Digit | '_')*
     - Integer: Digit+
@@ -98,7 +108,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
     - Keywords: let, in, where, fn, rec, and, or, not, etc.
     """
     
-    # Keywords mapping
+    # Mapping of keywords (case-insensitive) to their TokenType
     keywords = {
         'let': TokenType.LET,
         'in': TokenType.IN,
@@ -120,7 +130,7 @@ def rpal_lexer(input_string: str) -> List[Token]:
         'dummy': TokenType.DUMMY,
         'within': TokenType.WITHIN,
         'aug': TokenType.AUG,
-        'conc': TokenType.CONC,
+        'conc': TokenType.IDENTIFIER,  # 'conc' is treated as identifier
         'stern': TokenType.STERN,
         'stem': TokenType.STEM,
         'Istuple': TokenType.ISTUPLE,
@@ -136,18 +146,19 @@ def rpal_lexer(input_string: str) -> List[Token]:
         'tau': TokenType.TAU,
     }
     
-    # Token specification (order matters for longest match)
+    # Token specification as (name, regex pattern)
+    # Order matters: longer/more specific patterns must come first
     token_specification = [
         # Comments (should be skipped)
         ('COMMENT', r'//.*'),
-        
+
         # Multi-character operators (must come before single character ones)
         ('POWER', r'\*\*'),
         ('CONDITIONAL', r'->'),
-        ('LESS_EQ', r'<='),
-        ('GREATER_EQ', r'>='),
-        ('NOT_EQUALS', r'<>'),
-        
+        ('LESS_EQ', r'<='),         # <=
+        ('GREATER_EQ', r'>='),      # >=
+        ('NOT_EQUALS', r'<>'),      # <>
+
         # Single character operators and punctuation
         ('EQUALS', r'='),
         ('LESS', r'<'),
@@ -163,48 +174,51 @@ def rpal_lexer(input_string: str) -> List[Token]:
         ('RPAREN', r'\)'),
         ('SEMICOLON', r';'),
         ('COMMA', r','),
-        
+        ('PERIOD', r'\.'),  # Added period token
+
         # Identifiers and Keywords (letters, digits, underscore)
         ('IDENTIFIER', r'[A-Za-z][A-Za-z0-9_]*'),
-        
+
         # Integer literals
         ('INTEGER', r'\d+'),
-        
+
         # String literals (enclosed in single quotes)
         ('STRING', r"'([^'\\]|\\.)*'"),
-        
+
         # Whitespace (to be skipped)
         ('WHITESPACE', r'[ \t\n\r]+'),
-        
+
         # Catch-all for unrecognized characters
         ('MISMATCH', r'.'),
     ]
     
-    # Compile the regex
+    # Compile the regex for all token types into a single pattern
     tok_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_specification)
     
     tokens = []
     line_num = 1
     line_start = 0
     
+    # Iterate over all matches in the input string
     for mo in re.finditer(tok_regex, input_string):
         kind = mo.lastgroup
         value = mo.group()
         column = mo.start() - line_start + 1
         
         if kind == 'WHITESPACE':
-            # Count newlines to track line numbers
+            # Count newlines to track line numbers for error reporting
             line_num += value.count('\n')
             if '\n' in value:
                 line_start = mo.end() - len(value.split('\n')[-1])
             continue
         elif kind == 'COMMENT':
-            # Skip comments
+            # Skip comments (do not produce tokens)
             continue
         elif kind == 'MISMATCH':
+            # Unrecognized character: produce an error token
             tokens.append(Token(TokenType.ERROR, value, line_num, column))
         elif kind == 'IDENTIFIER':
-            # Check if it's a keyword
+            # Check if it's a keyword (case-insensitive)
             token_type = keywords.get(value.lower(), TokenType.IDENTIFIER)
             tokens.append(Token(token_type, value, line_num, column))
         else:
@@ -229,39 +243,26 @@ def rpal_lexer(input_string: str) -> List[Token]:
                 'RPAREN': TokenType.RPAREN,
                 'SEMICOLON': TokenType.SEMICOLON,
                 'COMMA': TokenType.COMMA,
+                'PERIOD': TokenType.PERIOD,  # Added period token
                 'INTEGER': TokenType.INTEGER,
                 'STRING': TokenType.STRING,
             }
             token_type = token_type_map.get(kind, TokenType.ERROR)
             tokens.append(Token(token_type, value, line_num, column))
     
-    # Add EOF token
+    # Add EOF token at the end of the input for parser termination
     tokens.append(Token(TokenType.EOF, 'EOF', line_num, len(input_string) - line_start + 1))
     
     return tokens
 
-# ------------------------ Testing ------------------------
-
+# -----------------------------------------------------------
+# Testing: Run this file directly to see tokenization results
+# -----------------------------------------------------------
 if __name__ == '__main__':
-    # Test RPAL programs
+    # Test RPAL programs (add more for further testing)
     test_programs = [
-        # Simple let expression
-        "let X = 3 in Print(X, X**2)",
-        
-        # Function definition with conditional
-        "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-        
-        # More complex expression with operators
-        "let f x = x + 1 in f(5) * 2",
-        
-        # String and boolean operations
-        "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
-        
-        # Nested let expressions
-        "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
-        
-        # Comment test
-        "let X = 42 // this is a comment\nin Print(X)"
+        # Example RPAL program for testing
+        "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
     ]
     
     for i, program in enumerate(test_programs, 1):
@@ -282,12 +283,4 @@ if __name__ == '__main__':
         
         print()
 
-    # Additional test for error handling
-    print("\n🚨 Error Test:")
-    print("=" * 30)
-    error_test = "let X = 3 $ invalid"
-    tokens = rpal_lexer(error_test)
-    for token in tokens:
-        if token.type == TokenType.EOF:
-            break
-        print(f"({token.type.value}, '{token.value}') at line {token.line}, col {token.column}")
+

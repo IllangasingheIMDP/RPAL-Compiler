@@ -1,39 +1,80 @@
 import sys
 from typing import List, Optional, Union, Any, Tuple
-from lexer import Token, TokenType, rpal_lexer
+from lexical import Token, TokenType, rpal_lexer
 
+# -----------------------------------------------------------
+# ASTNode: Node in the Abstract Syntax Tree for RPAL
+# -----------------------------------------------------------
 class ASTNode:
     """
-    Node in the Abstract Syntax Tree for RPAL
+    Node in the Abstract Syntax Tree for RPAL.
+    Each node has a type, an optional value, and a list of children.
     """
     def __init__(self, node_type: str, value: Any = None):
-        self.node_type = node_type
-        self.value = value
-        self.children = []
+        self.node_type = node_type  # The type of the node (e.g., 'let', 'identifier', '+', etc.)
+        self.value = value          # The value of the node (for leaves like identifiers, integers, strings)
+        self.children = []          # List of child ASTNode objects
     
     def add_child(self, child):
-        """Add a child node to this node"""
+        """Add a child node to this node."""
         self.children.append(child)
     
     def __str__(self):
-        """String representation of the node"""
+        """String representation of the node for debugging."""
         if self.value is not None:
             return f"{self.node_type}({self.value})"
         return self.node_type
     
     def __repr__(self):
         return self.__str__()
-    
+
     def print_tree(self, indent=0):
-        """Print the tree with indentation"""
-        print("  " * indent + str(self))
+        """
+        Print the tree with indentation, RPAL-style tags, and no angle brackets for certain node types.
+        - Node types in no_bracket_nodes are printed without angle brackets.
+        - Strings are printed as <STR:'value'> (with quotes).
+        - <->> is printed as ->.
+        """
+        no_bracket_nodes = {
+            "tau", "ls", "gr", "rec", "gamma", "->", "function_form",
+            "let", "where", "eq", "within", "neg","+"
+        }
+        # Special case: print <->> as ->
+        if self.node_type == "->>":
+            print("." * indent + "->")
+        elif self.value is not None:
+            if self.node_type in ["ID", "identifier"]:
+                print("." * indent + f"<ID:{self.value}>")
+            elif self.node_type in ["INT", "integer"]:
+                print("." * indent + f"<INT:{self.value}>")
+            elif self.node_type in ["STR", "string"]:
+                # Print string values with quotes
+                print("." * indent + f"<STR:'{self.value}'>")
+            elif self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
+            else:
+                print("." * indent + f"<{self.node_type}:{self.value}>")
+        else:
+            if self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
+            else:
+                print("." * indent + f"<{self.node_type}>")
+        
         for child in self.children:
-            child.print_tree(indent + 1)
+            if isinstance(child, ASTNode):
+                child.print_tree(indent + 1)
+            else:
+                print("." * (indent + 1) + str(child))
 
 
+# -----------------------------------------------------------
+# Parser: Recursive Descent Parser for RPAL language
+# -----------------------------------------------------------
 class Parser:
     """
-    Recursive Descent Parser for RPAL language
+    Recursive Descent Parser for RPAL language.
+    Converts a list of tokens into an Abstract Syntax Tree (AST).
+    Implements the RPAL grammar rules as parsing methods.
     """
     def __init__(self, tokens: List[Token]):
         self.tokens = tokens
@@ -41,17 +82,20 @@ class Parser:
         self.current_token = self.tokens[0]
     
     def parse(self) -> ASTNode:
-        """Parse the tokens and return the AST root node"""
+        """Parse the tokens and return the AST root node."""
         return self.parse_E()
     
     def advance(self):
-        """Move to the next token"""
+        """Move to the next token in the token list."""
         self.current_token_index += 1
         if self.current_token_index < len(self.tokens):
             self.current_token = self.tokens[self.current_token_index]
     
     def match(self, token_type: TokenType) -> Token:
-        """Match the current token with the expected type and advance"""
+        """
+        Match the current token with the expected type and advance.
+        Raises SyntaxError if the token does not match.
+        """
         if self.current_token.type == token_type:
             token = self.current_token
             self.advance()
@@ -60,23 +104,27 @@ class Parser:
             raise SyntaxError(f"Expected {token_type.value}, got {self.current_token.type.value} at line {self.current_token.line}, column {self.current_token.column}")
     
     def peek(self) -> Token:
-        """Look at the current token without advancing"""
+        """Look at the current token without advancing."""
         return self.current_token
     
     def check(self, token_type: TokenType) -> bool:
-        """Check if the current token is of the expected type"""
+        """Check if the current token is of the expected type."""
         return self.current_token.type == token_type
     
     def check_any(self, token_types: List[TokenType]) -> bool:
-        """Check if the current token is any of the expected types"""
+        """Check if the current token is any of the expected types."""
         return any(self.check(token_type) for token_type in token_types)
     
-    # Grammar rule implementations
-    
+    # ---------------- Grammar rule implementations ----------------
+
     # E -> 'let' D 'in' E => 'let'
     #    -> 'fn' Vb+ '.' E => 'lambda'
     #    -> Ew
     def parse_E(self) -> ASTNode:
+        """
+        Parse an expression (E) according to RPAL grammar.
+        Handles 'let', 'fn', or delegates to Ew.
+        """
         if self.check(TokenType.LET):
             self.match(TokenType.LET)
             d_node = self.parse_D()
@@ -91,32 +139,24 @@ class Parser:
         elif self.check(TokenType.FN):
             self.match(TokenType.FN)
             
-            # Parse one or more Vb
+            # Parse one or more Vb (variable bindings)
             vb_nodes = []
             vb_nodes.append(self.parse_Vb())
             
             while not self.check(TokenType.EQUALS) and not self.check(TokenType.PERIOD):
                 vb_nodes.append(self.parse_Vb())
             
-            # Match the period
+            # Match the period (optional in RPAL if '=' follows)
             if self.check(TokenType.PERIOD):
                 self.match(TokenType.PERIOD)
-            else:
-                # In RPAL, '.' can be omitted if '=' follows
-                pass
             
             e_node = self.parse_E()
             
-            # Create lambda node
+            # Create lambda node with all variable bindings and the expression
             lambda_node = ASTNode("lambda")
-            
-            # Add all variable bindings
             for vb in vb_nodes:
                 lambda_node.add_child(vb)
-            
-            # Add the expression
             lambda_node.add_child(e_node)
-            
             return lambda_node
         
         else:
@@ -125,6 +165,9 @@ class Parser:
     # Ew -> T 'where' Dr => 'where'
     #     -> T
     def parse_Ew(self) -> ASTNode:
+        """
+        Parse an expression with optional 'where' clause.
+        """
         t_node = self.parse_T()
         
         if self.check(TokenType.WHERE):
@@ -141,6 +184,9 @@ class Parser:
     # T -> Ta ( ',' Ta )+ => 'tau'
     #    -> Ta
     def parse_T(self) -> ASTNode:
+        """
+        Parse tuple expressions separated by commas.
+        """
         ta_node = self.parse_Ta()
         
         if self.check(TokenType.COMMA):
@@ -160,6 +206,9 @@ class Parser:
     # Ta -> Ta 'aug' Tc => 'aug'
     #     -> Tc
     def parse_Ta(self) -> ASTNode:
+        """
+        Parse 'aug' (augmentation) expressions.
+        """
         tc_node = self.parse_Tc()
         
         while self.check(TokenType.AUG):
@@ -176,6 +225,9 @@ class Parser:
     # Tc -> B '->' Tc '|' Tc => '->'
     #     -> B
     def parse_Tc(self) -> ASTNode:
+        """
+        Parse conditional expressions (guarded expressions).
+        """
         b_node = self.parse_B()
         
         if self.check(TokenType.CONDITIONAL):
@@ -195,6 +247,9 @@ class Parser:
     # B -> B 'or' Bt => 'or'
     #    -> Bt
     def parse_B(self) -> ASTNode:
+        """
+        Parse logical 'or' expressions.
+        """
         bt_node = self.parse_Bt()
         
         while self.check(TokenType.OR):
@@ -211,6 +266,9 @@ class Parser:
     # Bt -> Bt '&' Bs => '&'
     #     -> Bs
     def parse_Bt(self) -> ASTNode:
+        """
+        Parse logical 'and' expressions.
+        """
         bs_node = self.parse_Bs()
         
         while self.check(TokenType.AMPERSAND):
@@ -227,6 +285,9 @@ class Parser:
     # Bs -> 'not' Bp => 'not'
     #     -> Bp
     def parse_Bs(self) -> ASTNode:
+        """
+        Parse logical 'not' expressions.
+        """
         if self.check(TokenType.NOT):
             self.match(TokenType.NOT)
             bp_node = self.parse_Bp()
@@ -245,6 +306,9 @@ class Parser:
     #     -> A 'ne' A => 'ne'
     #     -> A
     def parse_Bp(self) -> ASTNode:
+        """
+        Parse binary comparison expressions (>, >=, <, <=, eq, ne).
+        """
         a_left_node = self.parse_A()
         
         if self.check(TokenType.GR) or self.check(TokenType.GREATER):
@@ -333,6 +397,9 @@ class Parser:
     #    -> '-' At => 'neg'
     #    -> At
     def parse_A(self) -> ASTNode:
+        """
+        Parse arithmetic expressions (addition, subtraction, unary plus/minus).
+        """
         # Handle unary + and -
         if self.check(TokenType.PLUS):
             self.match(TokenType.PLUS)
@@ -376,6 +443,9 @@ class Parser:
     #     -> At '/' Af => '/'
     #     -> Af
     def parse_At(self) -> ASTNode:
+        """
+        Parse multiplication and division expressions.
+        """
         af_node = self.parse_Af()
         
         while self.check(TokenType.MULTIPLY) or self.check(TokenType.DIVIDE):
@@ -402,6 +472,9 @@ class Parser:
     # Af -> Ap '**' Af => '**'
     #     -> Ap
     def parse_Af(self) -> ASTNode:
+        """
+        Parse exponentiation expressions (**).
+        """
         ap_node = self.parse_Ap()
         
         if self.check(TokenType.POWER):
@@ -418,6 +491,9 @@ class Parser:
     # Ap -> Ap '@' '<IDENTIFIER>' R => '@'
     #     -> R
     def parse_Ap(self) -> ASTNode:
+        """
+        Parse '@' operator expressions (function application with infix notation).
+        """
         r_node = self.parse_R()
         
         while self.check(TokenType.AT):
@@ -438,12 +514,15 @@ class Parser:
         
         return r_node
     
-    # R -> R Rn => 'gamma'
-    #    -> Rn
+    # R -> Rn => Rn
+    #    -> R Rn => 'gamma'
     def parse_R(self) -> ASTNode:
+        """
+        Parse function application (gamma) and atomic expressions.
+        """
         rn_node = self.parse_Rn()
         
-        # Function application (gamma)
+        # Function application (gamma): left-associative
         while (self.check(TokenType.IDENTIFIER) or 
                self.check(TokenType.INTEGER) or 
                self.check(TokenType.STRING) or 
@@ -451,7 +530,10 @@ class Parser:
                self.check(TokenType.FALSE) or 
                self.check(TokenType.NIL) or 
                self.check(TokenType.LPAREN) or 
-               self.check(TokenType.DUMMY)):
+               self.check(TokenType.DUMMY) or
+               self.check(TokenType.STERN) or    # Added this line
+               self.check(TokenType.STEM)): 
+            
             
             rn_right_node = self.parse_Rn()
             
@@ -471,6 +553,9 @@ class Parser:
     #     -> '(' E ')'
     #     -> 'dummy' => 'dummy'
     def parse_Rn(self) -> ASTNode:
+        """
+        Parse atomic expressions: identifiers, literals, parenthesized expressions, etc.
+        """
         if self.check(TokenType.IDENTIFIER):
             identifier = self.match(TokenType.IDENTIFIER)
             return ASTNode("identifier", identifier.value)
@@ -507,12 +592,22 @@ class Parser:
             self.match(TokenType.DUMMY)
             return ASTNode("dummy")
         
+        elif self.check(TokenType.STERN):
+            stern = self.match(TokenType.STERN)
+            return ASTNode("identifier", stern.value)
+
+        elif self.check(TokenType.STEM):
+            stem = self.match(TokenType.STEM)
+            return ASTNode("identifier", stem.value)
         else:
             raise SyntaxError(f"Unexpected token {self.current_token.type.value} at line {self.current_token.line}, column {self.current_token.column}")
     
     # D -> Da 'within' D => 'within'
     #    -> Da
     def parse_D(self) -> ASTNode:
+        """
+        Parse definitions, possibly with 'within' for nested scopes.
+        """
         da_node = self.parse_Da()
         
         if self.check(TokenType.WITHIN):
@@ -529,6 +624,9 @@ class Parser:
     # Da -> Dr ( 'and' Dr )+ => 'and'
     #     -> Dr
     def parse_Da(self) -> ASTNode:
+        """
+        Parse simultaneous definitions separated by 'and'.
+        """
         dr_node = self.parse_Dr()
         
         if self.check(TokenType.AND) or self.check(TokenType.SIMULTDEF):
@@ -552,6 +650,9 @@ class Parser:
     # Dr -> 'rec' Db => 'rec'
     #     -> Db
     def parse_Dr(self) -> ASTNode:
+        """
+        Parse recursive definitions (rec) or delegate to Db.
+        """
         if self.check(TokenType.REC):
             self.match(TokenType.REC)
             db_node = self.parse_Db()
@@ -566,6 +667,9 @@ class Parser:
     #     -> '<IDENTIFIER>' Vb+ '=' E => 'fcn_form'
     #     -> '(' D ')'
     def parse_Db(self) -> ASTNode:
+        """
+        Parse a single definition binding or function form.
+        """
         if self.check(TokenType.LPAREN):
             self.match(TokenType.LPAREN)
             d_node = self.parse_D()
@@ -584,7 +688,7 @@ class Parser:
                 # This is a function form
                 identifier_node = ASTNode("identifier", identifier_token.value)
                 
-                # Parse one or more Vb
+                # Parse one or more Vb (function parameters)
                 vb_nodes = []
                 vb_nodes.append(self.parse_Vb())
                 
@@ -595,7 +699,7 @@ class Parser:
                 e_node = self.parse_E()
                 
                 # Create function form node
-                fcn_form_node = ASTNode("fcn_form")
+                fcn_form_node = ASTNode("function_form")
                 fcn_form_node.add_child(identifier_node)
                 
                 # Add all variable bindings
@@ -637,6 +741,9 @@ class Parser:
     #     -> '(' Vl ')'
     #     -> '(' ')' => '()'
     def parse_Vb(self) -> ASTNode:
+        """
+        Parse a variable binding (Vb), which can be an identifier or a tuple.
+        """
         if self.check(TokenType.IDENTIFIER):
             identifier = self.match(TokenType.IDENTIFIER)
             return ASTNode("identifier", identifier.value)
@@ -658,6 +765,9 @@ class Parser:
     
     # Vl -> '<IDENTIFIER>' list ',' => ','?
     def parse_Vl(self) -> ASTNode:
+        """
+        Parse a variable list (Vl), which is a comma-separated list of identifiers.
+        """
         if not self.check(TokenType.IDENTIFIER):
             raise SyntaxError(f"Expected IDENTIFIER in variable list, got {self.current_token.type.value} at line {self.current_token.line}, column {self.current_token.column}")
         
@@ -683,75 +793,61 @@ class Parser:
         
         return id_node
 
-
+# -----------------------------------------------------------
+# parse_rpal: Entry point for parsing RPAL source code
+# -----------------------------------------------------------
 def parse_rpal(input_string: str) -> ASTNode:
     """
-    Parse RPAL source code and return the AST
+    Parse RPAL source code and return the AST.
     """
     tokens = rpal_lexer(input_string)
     parser = Parser(tokens)
     return parser.parse()
 
-
-# ------------------------ Testing ------------------------
-
+# -----------------------------------------------------------
+# Testing: Run this file directly to test the parser and AST
+# -----------------------------------------------------------
 if __name__ == '__main__':
-    # Test RPAL programs
-    test_programs = [
-        # Simple let expression
-        "let X = 3 in Print(X, X**2)",
-        
-        # Function definition with conditional
-        "let Abs N = N ls 0 -> -N | N in Print(Abs(-3))",
-        
-        # More complex expression with operators
-        "let f x = x + 1 in f(5) * 2",
-        
-        # String and boolean operations
-        "let Name = 'Hello' in Print(Name eq 'Hello' & true or false)",
-        
-        # Nested let expressions
-        "let X = 3 and Y = 5 in let Z = X + Y in Print(Z)",
-        
-        # Function with multiple parameters
-        "let add x y = x + y in add(3, 4)",
-        
-        # Recursive function
-        "let rec fact n = n eq 0 -> 1 | n * fact(n-1) in fact(5)",
-        
-        # Tuple construction
-        "let T = 1, 2, 3 in Print(T)",
-        
-        # Where clause
-        "Print(X + Y) where X = 3 and Y = 4",
-        
-        # Lambda expression
-        "let double = fn x. x * 2 in double(5)"
-    ]
+    # Check if -ast switch is provided
+    ast_only = False
+    file_name = None
     
-    for i, program in enumerate(test_programs, 1):
-        print(f"\n🔍 Test Program {i}: {program}")
-        print("=" * 50)
-        
+    for arg in sys.argv[1:]:
+        if arg == "-ast":
+            ast_only = True
+        else:
+            file_name = arg
+    
+    if file_name:
         try:
-            ast = parse_rpal(program)
-            print("AST Structure:")
-            ast.print_tree()
-                
+            with open(file_name, 'r') as file:
+                source = file.read()
+                ast = parse_rpal(source)
+                if ast_only:
+                    ast.print_tree(0)
+                else:
+                    # Import and use StAndCSE for evaluation
+                    from StAndCSE import evaluate_rpal
+                    evaluate_rpal(source, ast_only=False)
         except Exception as e:
             print(f"Error: {e}")
+    else:
+        # Test RPAL programs
+        test_programs = [
+            # Simple let expression for demonstration
+            "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
+        ]
         
-        print()
-
-    # Parse from file if provided
-    if len(sys.argv) > 1:
-        try:
-            with open(sys.argv[1], 'r') as file:
-                source = file.read()
-                print(f"Parsing file: {sys.argv[1]}")
-                print("=" * 50)
-                ast = parse_rpal(source)
+        for i, program in enumerate(test_programs, 1):
+            print(f"\n🔍 Test Program {i}: {program}")
+            print("=" * 50)
+            
+            try:
+                ast = parse_rpal(program)
                 print("AST Structure:")
-                ast.print_tree()
-        except Exception as e:
-            print(f"Error parsing file: {e}")
+                ast.print_tree(0)
+                    
+            except Exception as e:
+                print(f"Error: {e}")
+            
+            print()
