@@ -23,23 +23,39 @@ class ASTNode:
     
     def __repr__(self):
         return self.__str__()
-    
+
     def print_tree(self, indent=0):
-        """Print the tree with indentation"""
-        if self.value is not None:
-            if self.node_type == "identifier":
+        """Print the tree with indentation, RPAL-style tags, and no angle brackets for tau, ls, gr, rec, gamma, conditions, function_form, let, where, eq, within, neg"""
+        no_bracket_nodes = {
+            "tau", "ls", "gr", "rec", "gamma", "->", "function_form",
+            "let", "where", "eq", "within", "neg"
+        }
+        # Special case: print <->> as ->
+        if self.node_type == "->>":
+            print("." * indent + "->")
+        elif self.value is not None:
+            if self.node_type in ["ID", "identifier"]:
                 print("." * indent + f"<ID:{self.value}>")
-            elif self.node_type == "integer":
+            elif self.node_type in ["INT", "integer"]:
                 print("." * indent + f"<INT:{self.value}>")
-            elif self.node_type == "string":
-                print("." * indent + f"<STR:{self.value}>")
+            elif self.node_type in ["STR", "string"]:
+                # Print string values with quotes
+                print("." * indent + f"<STR:'{self.value}'>")
+            elif self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
             else:
                 print("." * indent + f"<{self.node_type}:{self.value}>")
         else:
-            print("." * indent + f"<{self.node_type}>")
+            if self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
+            else:
+                print("." * indent + f"<{self.node_type}>")
         
         for child in self.children:
-            child.print_tree(indent + 1)
+            if isinstance(child, ASTNode):
+                child.print_tree(indent + 1)
+            else:
+                print("." * (indent + 1) + str(child))
 
 
 class Parser:
@@ -449,8 +465,8 @@ class Parser:
         
         return r_node
     
-    # R -> R Rn => 'gamma'
-    #    -> Rn
+    # R -> Rn => Rn
+    #    -> R Rn => 'gamma'
     def parse_R(self) -> ASTNode:
         rn_node = self.parse_Rn()
         

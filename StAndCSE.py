@@ -163,7 +163,7 @@ class CSEMachine:
         self.stack = []
         self.env = CSEEnvironment()
         self.env_stack = []
-        self.debug = True  # Enable debug output
+        self.debug = False  # Disable debug output
         
         # Initialize built-in functions
         self._init_builtins()
@@ -189,27 +189,13 @@ class CSEMachine:
         
         step = 0
         while self.control:
-            if self.debug:
-                print(f"\n--- Step {step} ---")
-                print("Control:", [str(c) for c in self.control])
-                print("Stack:", [str(s) for s in self.stack])
-                print("Env:", self.env)
             item = self.control.pop()
-            if self.debug:
-                print("Popped from control:", item)
             if isinstance(item, STNode):
-                if self.debug:
-                    print("Processing node:", item)
                 self._process_node(item)
             elif isinstance(item, CSEOperation):
-                if self.debug:
-                    print("Processing operation:", item)
                 item.apply(self)
             else:
                 raise CSERuntimeError(f"Invalid control item: {item}")
-            if self.debug:
-                print("Stack after step:", [str(s) for s in self.stack])
-                print("Env after step:", self.env)
             step += 1
         
         if not self.stack:
@@ -217,88 +203,55 @@ class CSEMachine:
         return self.stack[0]
     
     def _process_node(self, node: STNode):
-        """Process a node from the control stack"""
         node_type = node.node_type
-
-        if self.debug:
-            print(f"Processing node type: {node_type}")
 
         if node_type == "lambda":
             var_name = node.children[0].value
             body = node.children[1]
             closure = CSEClosure(var_name, body, self.env)
-            if self.debug:
-                print(f"Created closure for var '{var_name}' with env {self.env}")
             self.stack.append(closure)
             
         elif node_type == "gamma":
-            if self.debug:
-                print("Preparing function application (gamma)")
             self.control.append(CSEApply())
             self.control.append(node.children[0])  # Function
             self.control.append(node.children[1])  # Argument
         elif node_type == "@":
-            if self.debug:
-                print("Processing infix @ operator")
-            # Reverse order for infix: left @ fn @ right becomes gamma(gamma(fn, left), right)
             self.control.append(CSEAtOperation())
             self.control.append(node.children[2])  # Right operand
             self.control.append(node.children[1])  # Function
             self.control.append(node.children[0])  # Left operand
         elif node_type == "tuple_apply":
-            if self.debug:
-                print("Preparing tuple unpacking application (tuple_apply)")
             self.control.append(CSETupleApply(node.children[2]))  # Unpacking info
             self.control.append(node.children[0])  # Function (lambda chain)
             self.control.append(node.children[1])  # Tuple expression
 
         elif node_type == "Ystar":
-            if self.debug:
-                print("Pushing Ystar node to stack")
             self.stack.append(node)
 
         elif node_type == "identifier":
-            if self.debug:
-                print(f"Looking up identifier: {node.value}")
             value = self.env.lookup(node.value)
-            if self.debug:
-                print(f"Looked up identifier '{node.value}': {value}")
             self.stack.append(value)
             
         elif node_type == "integer":
-            if self.debug:
-                print(f"Pushing integer: {node.value}")
             self.stack.append(CSEInteger(node.value))
             
         elif node_type == "string":
-            if self.debug:
-                print(f"Pushing string: {node.value}")
             self.stack.append(CSEString(node.value))
             
         elif node_type == "true":
-            if self.debug:
-                print("Pushing boolean: true")
             self.stack.append(CSEBoolean(True))
             
         elif node_type == "false":
-            if self.debug:
-                print("Pushing boolean: false")
             self.stack.append(CSEBoolean(False))
             
         elif node_type == "nil":
-            if self.debug:
-                print("Pushing nil")
             self.stack.append(CSENil())
             
         elif node_type == "dummy":
-            if self.debug:
-                print("Pushing dummy")
             self.stack.append(CSEDummy())
             
         elif node_type == "tau":
             n = len(node.children)
-            if self.debug:
-                print(f"Preparing tuple of size {n}")
             self.control.append(CSETupleConstructor(n))
             for child in reversed(node.children):
                 self.control.append(child)
@@ -307,14 +260,10 @@ class CSEMachine:
             condition = node.children[0]
             then_branch = node.children[1]
             else_branch = node.children[2]
-            if self.debug:
-                print("Preparing conditional (->)")
             self.control.append(CSEConditional(then_branch, else_branch))
             self.control.append(condition)
             
         elif node_type in ["+", "-", "*", "/", "**"]:
-            if self.debug:
-                print(f"Preparing binary arithmetic operation: {node_type}")
             op_map = {
                 "+": CSEAdd(),
                 "-": CSESubtract(),
@@ -327,8 +276,6 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["gr", "ge", "ls", "le", "eq", "ne"]:
-            if self.debug:
-                print(f"Preparing comparison operation: {node_type}")
             op_map = {
                 "gr": CSEGreater(),
                 "ge": CSEGreaterEqual(),
@@ -342,8 +289,6 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["or", "&"]:
-            if self.debug:
-                print(f"Preparing boolean operation: {node_type}")
             op_map = {
                 "or": CSEOr(),
                 "&": CSEAnd()
@@ -353,8 +298,6 @@ class CSEMachine:
             self.control.append(node.children[1])
             
         elif node_type in ["neg", "not"]:
-            if self.debug:
-                print(f"Preparing unary operation: {node_type}")
             op_map = {
                 "neg": CSENeg(),
                 "not": CSENot()
@@ -363,8 +306,6 @@ class CSEMachine:
             self.control.append(node.children[0])
             
         elif node_type == "aug":
-            if self.debug:
-                print("Preparing tuple augmentation (aug)")
             self.control.append(CSEAug())
             self.control.append(node.children[0])
             self.control.append(node.children[1])
@@ -773,14 +714,20 @@ if __name__ == '__main__':
             print(f"Error: {e}")
     else:
         test_programs = [
+            #"let greatestOfThree (x, y, z) = x > y & x > z -> x | y > x & y > z -> y | z in Print(greatestOfThree(12, 30, 18), greatestOfThree(4, 9, 6), greatestOfThree(8, 8, 8))"
+            "let rec generateFibonacci(rangeStart, rangeEnd) = rangeStart > rangeEnd -> nil | generateFibonacci(rangeStart + 1, rangeEnd), print(' '), Print(fibonacci rangeStart) where rec fibonacci(n) = n eq 0 -> 0 | n eq 1 -> 1 | fibonacci(n - 1) + fibonacci(n - 2) in generateFibonacci(0, 10)"
+           
             #"let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )",
-            "let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
-       #"let  rec OddEvenRec n = n eq 1 -> 'Odd' | n eq 0 -> 'Even' | OddEvenRec (n-2) in Print ( OddEvenRec 2)",
+            ##"let rec Rev S = S eq '' -> '' | (Rev(Stern S)) @Conc (Stem S ) in let Pairs (S1,S2) = P (Rev S1, Rev S2) where rec P (S1, S2) = S1 eq '' & S2 eq '' -> nil |  (fn L. P (Stern S1, Stern S2) aug ((Stem S1) @Conc (Stem S2))) nil in Print ( Pairs ('abc','def'))"
+            #"let  rec OddEvenRec n = n eq 1 -> 'Odd' | n eq 0 -> 'Even' | OddEvenRec (n-2) in Print ( OddEvenRec 3)",
             #"let findMax a b c = (Isinteger a) & (Isinteger b) & (Isinteger c) -> a > b -> a > c -> a | c | c > b -> c | b | 'Error' in Print (findMax 4 6 2, findMax (-6) (-2) (-4), findMax 4 2 6, findMax 2 6 4)"
             #"let rec sumuptoSeries a b = a > b -> nil | (sumuptoSeries (a+1) b, Print ' ', Print (Sumupto a)) where rec Sumupto n = n eq 0 -> 0 | n + Sumupto (n-1) in sumuptoSeries 3 10"
-            #"let OEList T = OEListRec (T, Order T) where rec OEListRec (T, i) = i eq 0 -> nil (OEListRec (T, (i-1)) aug (OddEven (T i))) where OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OEList (3, 5, 121, 10, 12))"
+            ##"let OEList T = OEListRec (T, Order T) where rec OEListRec (T, i) = i eq 0 -> nil (OEListRec (T, (i-1)) aug (OddEven (T i))) where OddEven n = (n - (n/2) * 2) eq 1 -> 'Odd' | 'Even' in Print (OEList (3, 5, 121, 10, 12))"
+            #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'F' in Print (getGrade 65)"
+            #"let determineSign num = num > 0 -> 'Positive' | num < 0 -> 'Negative' | 'Zero' in Print(determineSign(8), determineSign(-2), determineSign(0))"
+            #"let greatestOfThree (x, y, z) = x > y & x > z -> x | y > x & y > z -> y | z in Print(greatestOfThree(12, 30, 18), greatestOfThree(4, 9, 6), greatestOfThree(8, 8, 8))"
         ]
-        #"let getGrade marks = not (Isinteger marks) -> 'Please enter an integer'| (marks > 100) or (marks < 0) -> 'Invalid Input'| marks >= 75 -> 'A'| marks >= 65 -> 'B'| marks >= 50 -> 'C'| 'Fin Print (getGrade 65)"
+        
 
         
         for i, program in enumerate(test_programs, 1):

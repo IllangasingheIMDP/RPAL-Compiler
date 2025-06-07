@@ -238,8 +238,30 @@ class STNode:
             self.is_standardized = True
     
     def print_tree(self, indent=0):
-        """Print the tree with indentation"""
-        print("." * indent + str(self))
+        """Print the ST tree with indentation and RPAL-style tags"""
+        no_bracket_nodes = {"tau", "ls", "gr", "rec", "gamma", "lambda", "+", "->", "&", ",", "-", "eq"}
+        # Special case: print <->> as ->
+        if self.node_type == "->>":
+            print("." * indent + "->")
+        elif self.node_type == "Ystar":
+            print("." * indent + "<Y*>")
+        elif self.value is not None:
+            if self.node_type in ["ID", "identifier"]:
+                print("." * indent + f"<ID:{self.value}>")
+            elif self.node_type in ["INT", "integer"]:
+                print("." * indent + f"<INT:{self.value}>")
+            elif self.node_type in ["STR", "string"]:
+                print("." * indent + f"<STR:'{self.value}'>")
+            elif self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
+            else:
+                print("." * indent + f"<{self.node_type}:{self.value}>")
+        else:
+            if self.node_type in no_bracket_nodes:
+                print("." * indent + f"{self.node_type}")
+            else:
+                print("." * indent + f"<{self.node_type}>")
+        
         for child in self.children:
             if isinstance(child, STNode):
                 child.print_tree(indent + 1)
