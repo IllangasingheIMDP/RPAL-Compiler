@@ -206,7 +206,7 @@ class STNode:
                     # Create new nodes
                     F = STNode(X.get_data(), X.value)
                     G = STNode("gamma")
-                    Y = STNode("Ystar")
+                    Y = STNode("Y*")
                     L = STNode("lambda")
                     
                     # Set depths
@@ -243,7 +243,7 @@ class STNode:
         # Special case: print <->> as ->
         if self.node_type == "->>":
             print("." * indent + "->")
-        elif self.node_type == "Ystar":
+        elif self.node_type == "Y*":
             print("." * indent + "<Y*>")
         elif self.value is not None:
             if self.node_type in ["ID", "identifier"]:

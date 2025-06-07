@@ -1,2 +1,1 @@
-let rec generateFibonacci(rangeStart, rangeEnd) = rangeStart > rangeEnd -> nil | generateFibonacci(rangeStart + 1, rangeEnd), print(' '), Print(fibonacci rangeStart) where rec fibonacci(n) = n eq 0 -> 0 | n eq 1 -> 1 | fibonacci(n - 1) + fibonacci(n - 2) in generateFibonacci(0, 10)
-
+let f x y z t = x + y + z + t in Print (( 3 @f 4) 5 6 )
