@@ -1,6 +1,6 @@
 from parser import parse_rpal
 from Standardizer import ast_to_st
-from cse_machine.machine import CSEMachine
+from machine import CSEMachine
 from st_cse_adapter import adapt_st_for_cse
 
 
