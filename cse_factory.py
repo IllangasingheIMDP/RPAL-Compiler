@@ -41,11 +41,13 @@ def evaluate_rpal(source, ast_show=False, st_show=False):
     # Generate Abstract Syntax Tree
     ast = parse_rpal(source)
     if ast_show:
+        print("\nAbstract Syntax Tree:\n")
         ast.print_tree(0)
     
     # Convert to Standardized Tree
     st = ast_to_st(ast)
     if st_show:
+        print("\nStandardized Tree:\n")
         st.print_tree(0)
     
     # Adapt ST for CSE machine
